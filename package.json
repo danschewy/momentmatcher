@@ -13,31 +13,36 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:reset": "npx tsx scripts/reset-db.ts && npm run db:push",
     "setup": "npm install && npm run db:push",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "upload-video": "npx tsx scripts/upload-video.ts",
+    "verify-index": "npx tsx scripts/verify-index.ts",
+    "check-db": "npx tsx scripts/check-db.ts"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.4",
     "@neondatabase/serverless": "^0.10.1",
-    "drizzle-orm": "^0.38.0",
-    "openai": "^4.77.0",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.38.0",
+    "hls.js": "^1.6.13",
+    "jspdf": "^2.5.2",
     "lucide-react": "^0.468.0",
-    "jspdf": "^2.5.2"
+    "next": "15.5.4",
+    "openai": "^4.77.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "drizzle-kit": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
-    "@eslint/eslintrc": "^3",
-    "drizzle-kit": "^0.28.1"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

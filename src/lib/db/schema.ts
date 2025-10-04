@@ -7,9 +7,10 @@ import {
   integer,
   boolean,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const videos = pgTable("videos", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(), // Twelve Labs video ID
   filename: text("filename").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   status: text("status").notNull().default("processing"), // processing, completed, failed
@@ -20,7 +21,7 @@ export const videos = pgTable("videos", {
 
 export const adMoments = pgTable("ad_moments", {
   id: uuid("id").primaryKey().defaultRandom(),
-  videoId: uuid("video_id")
+  videoId: text("video_id")
     .references(() => videos.id)
     .notNull(),
   startTime: integer("start_time").notNull(), // in seconds
@@ -47,3 +48,26 @@ export const adRecommendations = pgTable("ad_recommendations", {
   relevanceScore: integer("relevance_score"), // 0-100
   selected: boolean("selected").default(false),
 });
+
+// Relations
+export const videosRelations = relations(videos, ({ many }) => ({
+  moments: many(adMoments),
+}));
+
+export const adMomentsRelations = relations(adMoments, ({ one, many }) => ({
+  video: one(videos, {
+    fields: [adMoments.videoId],
+    references: [videos.id],
+  }),
+  recommendations: many(adRecommendations),
+}));
+
+export const adRecommendationsRelations = relations(
+  adRecommendations,
+  ({ one }) => ({
+    moment: one(adMoments, {
+      fields: [adRecommendations.momentId],
+      references: [adMoments.id],
+    }),
+  })
+);

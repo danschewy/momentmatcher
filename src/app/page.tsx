@@ -31,6 +31,12 @@ export default function Home() {
             >
               How It Works
             </a>
+            <Link
+              href="/analyze"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+            >
+              Start Analyzing
+            </Link>
           </nav>
         </div>
       </header>

@@ -5,6 +5,7 @@ export interface ProductRecommendation {
   brandName: string;
   description: string;
   productUrl: string;
+  imageUrl?: string;
   reasoning: string;
   relevanceScore: number;
 }
@@ -22,6 +23,11 @@ class OpenAISearchClient {
     category: string
   ): Promise<ProductRecommendation[]> {
     try {
+      console.log("Finding relevant products for:", {
+        momentContext,
+        emotionalTone,
+        category,
+      });
       const prompt = `Based on the following video moment, recommend 3 relevant products or services that would make great ads:
 
 Video Moment Context: ${momentContext}
@@ -34,17 +40,33 @@ For each recommendation, provide:
 3. Why it's a good fit for this moment
 4. Relevance score (0-100)
 
-Format your response as JSON array with this structure:
-[{
-  "productName": "string",
-  "brandName": "string", 
-  "description": "string",
-  "reasoning": "string",
-  "relevanceScore": number
-}]`;
+IMPORTANT: Return your response as a JSON object with a "recommendations" array containing exactly 3 products.
+
+Format your response exactly like this:
+{
+  "recommendations": [
+    {
+      "productName": "string",
+      "brandName": "string", 
+      "description": "string",
+      "reasoning": "string",
+      "relevanceScore": number
+    }
+  ]
+}`;
 
       const completion = await this.client.chat.completions.create({
-        model: "gpt-4o",
+        model: "o4-mini",
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description:
+                "Search the web for the most relevant products and services",
+            },
+          },
+        ],
         messages: [
           {
             role: "system",
@@ -64,11 +86,41 @@ Format your response as JSON array with this structure:
       }
 
       const parsed = JSON.parse(content);
-      const recommendations = Array.isArray(parsed)
-        ? parsed
-        : parsed.recommendations || [];
+      console.log("OpenAI Parsed Response:", JSON.stringify(parsed, null, 2));
 
-      return recommendations.map((rec: Record<string, unknown>) => ({
+      // Handle different response formats
+      let recommendations: Record<string, unknown>[] = [];
+
+      if (Array.isArray(parsed)) {
+        // Direct array format
+        recommendations = parsed;
+        console.log("✓ Received array of recommendations");
+      } else if (
+        parsed.recommendations &&
+        Array.isArray(parsed.recommendations)
+      ) {
+        // Object with recommendations array
+        recommendations = parsed.recommendations;
+        console.log("✓ Received recommendations in object wrapper");
+      } else if (typeof parsed === "object" && parsed.productName) {
+        // Single recommendation object - wrap in array
+        recommendations = [parsed];
+        console.log("⚠️  Received single recommendation, wrapping in array");
+      } else {
+        console.error("❌ Unexpected response format:", parsed);
+        return this.getFallbackRecommendations(category, emotionalTone);
+      }
+
+      console.log(
+        `Found ${recommendations.length} recommendations from OpenAI`
+      );
+
+      if (recommendations.length === 0) {
+        console.warn("⚠️  No recommendations found, using fallbacks");
+        return this.getFallbackRecommendations(category, emotionalTone);
+      }
+
+      const mapped = recommendations.map((rec: Record<string, unknown>) => ({
         productName: (rec.productName ||
           rec.product_name ||
           "Unknown Product") as string,
@@ -81,11 +133,15 @@ Format your response as JSON array with this structure:
           rec.product_url ||
           rec.url ||
           "#") as string,
+        imageUrl: (rec.imageUrl || rec.image_url || "") as string,
         reasoning: (rec.reasoning || "Relevant to content") as string,
         relevanceScore: (rec.relevanceScore ||
           rec.relevance_score ||
           75) as number,
       }));
+
+      console.log(`✅ Mapped ${mapped.length} recommendations successfully`);
+      return mapped;
     } catch (error: unknown) {
       console.error(
         "Error getting product recommendations:",
@@ -106,10 +162,9 @@ Format your response as JSON array with this structure:
         {
           productName: "Coursera Plus",
           brandName: "Coursera",
-          description:
-            "Access 7,000+ courses from top universities and companies",
+          description: "Access 7,000+ courses from top universities",
           productUrl: "https://www.coursera.org",
-          reasoning: "Perfect for educational content viewers seeking to learn",
+          reasoning: "Perfect for educational content viewers",
           relevanceScore: 85,
         },
         {
@@ -121,30 +176,123 @@ Format your response as JSON array with this structure:
           relevanceScore: 82,
         },
       ],
+      travel: [
+        {
+          productName: "Airbnb Plus",
+          brandName: "Airbnb",
+          description: "Unique stays and experiences around the world",
+          productUrl: "https://www.airbnb.com",
+          reasoning: "Perfect for travel enthusiasts",
+          relevanceScore: 88,
+        },
+        {
+          productName: "Booking.com Genius",
+          brandName: "Booking.com",
+          description: "Save 10-20% on accommodations worldwide",
+          productUrl: "https://www.booking.com",
+          reasoning: "Ideal for destination planning",
+          relevanceScore: 85,
+        },
+      ],
+      food: [
+        {
+          productName: "HelloFresh Subscription",
+          brandName: "HelloFresh",
+          description: "Fresh ingredients and recipes delivered weekly",
+          productUrl: "https://www.hellofresh.com",
+          reasoning: "Perfect for cooking and food enthusiasts",
+          relevanceScore: 86,
+        },
+        {
+          productName: "MasterClass Cooking",
+          brandName: "MasterClass",
+          description: "Learn from world-renowned chefs",
+          productUrl: "https://www.masterclass.com",
+          reasoning: "Elevate culinary skills",
+          relevanceScore: 83,
+        },
+      ],
+      fashion: [
+        {
+          productName: "Stitch Fix",
+          brandName: "Stitch Fix",
+          description: "Personal styling service delivered to your door",
+          productUrl: "https://www.stitchfix.com",
+          reasoning: "Personalized fashion recommendations",
+          relevanceScore: 84,
+        },
+      ],
+      fitness: [
+        {
+          productName: "Peloton Membership",
+          brandName: "Peloton",
+          description: "Live and on-demand fitness classes",
+          productUrl: "https://www.onepeloton.com",
+          reasoning: "Matches fitness and wellness content",
+          relevanceScore: 87,
+        },
+        {
+          productName: "Nike Training Club",
+          brandName: "Nike",
+          description: "Free workouts and training programs",
+          productUrl: "https://www.nike.com/ntc-app",
+          reasoning: "Perfect for active lifestyle",
+          relevanceScore: 85,
+        },
+      ],
+      technology: [
+        {
+          productName: "Apple One Bundle",
+          brandName: "Apple",
+          description: "Music, TV+, Arcade, iCloud+ in one subscription",
+          productUrl: "https://www.apple.com/apple-one",
+          reasoning: "Tech enthusiast bundle",
+          relevanceScore: 86,
+        },
+      ],
+      productivity: [
+        {
+          productName: "Notion Premium",
+          brandName: "Notion",
+          description: "All-in-one workspace for notes, tasks, and wikis",
+          productUrl: "https://www.notion.so",
+          reasoning: "Perfect for productivity optimization",
+          relevanceScore: 88,
+        },
+      ],
+      product: [
+        {
+          productName: "Amazon Prime",
+          brandName: "Amazon",
+          description: "Fast shipping, streaming, and exclusive deals",
+          productUrl: "https://www.amazon.com/prime",
+          reasoning: "General product interest",
+          relevanceScore: 75,
+        },
+      ],
       lifestyle: [
         {
-          productName: "Premium Membership",
-          brandName: "Nike",
-          description:
-            "Exclusive access to new products and personalized training",
-          productUrl: "https://www.nike.com",
-          reasoning: "Matches active lifestyle content",
-          relevanceScore: 80,
+          productName: "Calm Premium",
+          brandName: "Calm",
+          description: "Meditation and sleep stories",
+          productUrl: "https://www.calm.com",
+          reasoning: "Wellness and lifestyle alignment",
+          relevanceScore: 82,
         },
       ],
       entertainment: [
         {
-          productName: "Premium Streaming",
+          productName: "Spotify Premium",
           brandName: "Spotify",
           description: "Ad-free music and podcasts",
           productUrl: "https://www.spotify.com",
-          reasoning: "Entertainment content audience overlap",
-          relevanceScore: 78,
+          reasoning: "Entertainment content overlap",
+          relevanceScore: 80,
         },
       ],
     };
 
-    return fallbackMap[category] || fallbackMap.lifestyle || [];
+    return fallbackMap[category] || fallbackMap.product || [];
   }
 }
 

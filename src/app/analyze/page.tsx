@@ -7,6 +7,7 @@ import VideoTimeline from "@/components/VideoTimeline";
 import MomentCard from "@/components/MomentCard";
 import ProcessingAnimation from "@/components/ProcessingAnimation";
 import VideoLibrary from "@/components/VideoLibrary";
+import HLSVideoPlayer from "@/components/HLSVideoPlayer";
 import { AdMoment } from "@/types";
 
 export default function AnalyzePage() {
@@ -18,6 +19,11 @@ export default function AnalyzePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedMoment, setSelectedMoment] = useState<AdMoment | null>(null);
   const [adMoments, setAdMoments] = useState<AdMoment[]>([]);
+  const [selectedVideoInfo, setSelectedVideoInfo] = useState<{
+    indexId: string;
+    videoId: string;
+    filename: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (selectedFile: File) => {
@@ -27,23 +33,71 @@ export default function AnalyzePage() {
     setMode("upload");
   };
 
-  const handleVideoLibrarySelect = (
-    _indexId: string,
-    _videoId: string,
-    _filename: string
+  const handleVideoLibrarySelect = async (
+    indexId: string,
+    videoId: string,
+    filename: string
   ) => {
     setMode("select");
-    // Trigger analysis for the selected video
+    setSelectedVideoInfo({ indexId, videoId, filename });
     setIsProcessing(true);
 
-    // Simulate processing with demo data
-    setTimeout(() => {
-      const demoMoments: AdMoment[] = generateDemoMoments();
-      setAdMoments(demoMoments);
-      setIsProcessing(false);
+    try {
+      // Fetch video details including HLS URL
+      const videoResponse = await fetch(
+        `/api/indexes/${indexId}/videos/${videoId}`
+      );
+      const videoData = await videoResponse.json();
+
+      console.log("Video data received:", videoData);
+
+      // According to Twelve Labs docs, HLS structure is at top level
+      if (videoData.video?.hls?.video_url) {
+        console.log("Setting video URL:", videoData.video.hls.video_url);
+        setVideoUrl(videoData.video.hls.video_url);
+      } else {
+        console.warn("No HLS URL found in video data:", videoData);
+        alert(
+          "This video doesn't have HLS streaming enabled. Please ensure videos are uploaded with enable_video_stream=true"
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      // Trigger real analysis
+      const analysisResponse = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indexId, videoId }),
+      });
+
+      const analysisData = await analysisResponse.json();
+      console.log("Analysis data received:", analysisData);
+      console.log("First moment:", analysisData.moments?.[0]);
+      console.log(
+        "First moment recommendations:",
+        analysisData.moments?.[0]?.recommendations
+      );
+
+      if (analysisData.moments && analysisData.moments.length > 0) {
+        setAdMoments(analysisData.moments);
+        setSelectedMoment(analysisData.moments[0]);
+        console.log(
+          "Set moments, first moment has",
+          analysisData.moments[0].recommendations?.length,
+          "recommendations"
+        );
+      } else {
+        console.warn("No moments found in analysis");
+      }
+
       setIsAnalyzed(true);
-      setSelectedMoment(demoMoments[0]);
-    }, 3000);
+    } catch (error) {
+      console.error("Error analyzing video:", error);
+      alert("Failed to analyze video. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const generateDemoMoments = (): AdMoment[] => {
@@ -166,20 +220,126 @@ export default function AnalyzePage() {
     ];
   };
 
+  const pollVideoStatus = async (
+    videoId: string,
+    indexId: string
+  ): Promise<boolean> => {
+    const maxAttempts = 60; // 5 minutes
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const statusResponse = await fetch(`/api/videos/${videoId}/status`);
+        const statusData = await statusResponse.json();
+
+        console.log(
+          `Video status check (attempt ${attempts + 1}):`,
+          statusData
+        );
+
+        if (statusData.status === "completed") {
+          console.log("Video indexing complete!");
+          return true;
+        }
+
+        if (statusData.status === "failed") {
+          throw new Error(statusData.error || "Video indexing failed");
+        }
+
+        // Still processing, wait and try again
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+        attempts++;
+      } catch (error) {
+        console.error("Error polling video status:", error);
+        throw error;
+      }
+    }
+
+    throw new Error(
+      "Video indexing timed out. Please check the video library later."
+    );
+  };
+
   const handleUpload = async () => {
     if (!file) return;
 
     setIsProcessing(true);
 
-    // Simulate processing with demo data
-    setTimeout(() => {
-      const demoMoments: AdMoment[] = generateDemoMoments();
+    try {
+      // Upload video to server
+      const formData = new FormData();
+      formData.append("file", file);
 
-      setAdMoments(demoMoments);
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      // Handle error responses
+      if (!uploadResponse.ok) {
+        if (uploadData.error) {
+          alert(
+            `${uploadData.error}\n\n${
+              uploadData.hint ||
+              "Please select a video from the library instead."
+            }`
+          );
+        } else {
+          alert("Failed to upload video. Please try again.");
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!uploadData.videoId) {
+        throw new Error("Upload succeeded but no video ID returned");
+      }
+
+      console.log("Upload response:", uploadData);
+
+      // If video is still processing, poll for completion
+      if (
+        uploadData.status === "processing" ||
+        uploadData.status === "validating"
+      ) {
+        console.log(
+          `Video uploaded, indexing in progress... (${uploadData.estimatedTime})`
+        );
+
+        // Poll for status
+        const isComplete = await pollVideoStatus(
+          uploadData.videoId,
+          uploadData.indexId
+        );
+
+        if (!isComplete) {
+          alert(
+            "Video is still processing. You can check the 'Select from Library' section later to analyze it."
+          );
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Video is ready, proceed with analysis
+      console.log("Video ready, starting analysis...");
+      await handleVideoLibrarySelect(
+        uploadData.indexId,
+        uploadData.videoId,
+        file.name
+      );
+    } catch (error) {
+      console.error("Error uploading video:", error);
+      alert(
+        `Failed to upload video: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
       setIsProcessing(false);
-      setIsAnalyzed(true);
-      setSelectedMoment(demoMoments[0]);
-    }, 3000);
+    }
   };
 
   const handleExportReport = () => {
@@ -305,6 +465,15 @@ export default function AnalyzePage() {
               Upload Your Video
             </h2>
 
+            {/* Info about upload */}
+            <div className="mb-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+              <p className="text-blue-300 text-sm">
+                <strong>📤 Direct Upload:</strong> Upload videos directly from
+                your computer (max 2GB, 360x360 to 3840x2160 resolution).
+                Processing may take several minutes depending on video length.
+              </p>
+            </div>
+
             <div
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-gray-700 rounded-2xl p-16 hover:border-indigo-500/50 bg-gray-800/50 transition-all cursor-pointer"
@@ -347,10 +516,10 @@ export default function AnalyzePage() {
 
               {!isProcessing ? (
                 <>
-                  <video
+                  <HLSVideoPlayer
                     src={videoUrl}
-                    controls
                     className="w-full rounded-lg mb-6"
+                    controls
                   />
 
                   <div className="flex items-center justify-between">
@@ -388,13 +557,14 @@ export default function AnalyzePage() {
           <div className="space-y-6">
             {/* Video Player */}
             <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
-              <video
+              <h3 className="text-2xl font-bold text-white mb-4">
+                {selectedVideoInfo?.filename || file?.name || "Video"}
+              </h3>
+              <HLSVideoPlayer
                 src={videoUrl}
-                controls
                 className="w-full rounded-lg"
-                onTimeUpdate={(e) =>
-                  setCurrentTime(e.currentTarget.currentTime)
-                }
+                controls
+                onTimeUpdate={setCurrentTime}
               />
             </div>
 
@@ -423,50 +593,61 @@ export default function AnalyzePage() {
               <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-8">
                 <h3 className="text-2xl font-bold text-white mb-6">
                   Ad Recommendations
+                  {selectedMoment.recommendations.length > 0 && (
+                    <span className="ml-3 text-sm text-gray-400">
+                      ({selectedMoment.recommendations.length} recommendations)
+                    </span>
+                  )}
                 </h3>
 
-                <div className="space-y-4">
-                  {selectedMoment.recommendations.map((rec) => (
-                    <div
-                      key={rec.id}
-                      className={`p-6 border rounded-xl transition-all ${
-                        rec.selected
-                          ? "border-indigo-500 bg-indigo-500/10"
-                          : "border-gray-700 bg-gray-900/50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-xl font-bold text-white">
-                            {rec.productName}
-                          </h4>
-                          <p className="text-indigo-400">{rec.brandName}</p>
+                {selectedMoment.recommendations.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">
+                    No recommendations available for this moment yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedMoment.recommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className={`p-6 border rounded-xl transition-all ${
+                          rec.selected
+                            ? "border-indigo-500 bg-indigo-500/10"
+                            : "border-gray-700 bg-gray-900/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h4 className="text-xl font-bold text-white">
+                              {rec.productName}
+                            </h4>
+                            <p className="text-indigo-400">{rec.brandName}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                              {rec.relevanceScore}% Match
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
-                            {rec.relevanceScore}% Match
-                          </span>
+
+                        <p className="text-gray-300 mb-4">{rec.description}</p>
+
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-gray-400 italic">
+                            {rec.reasoning}
+                          </p>
+                          <a
+                            href={rec.productUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+                          >
+                            Learn More
+                          </a>
                         </div>
                       </div>
-
-                      <p className="text-gray-300 mb-4">{rec.description}</p>
-
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-400 italic">
-                          {rec.reasoning}
-                        </p>
-                        <a
-                          href={rec.productUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-                        >
-                          Learn More
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
