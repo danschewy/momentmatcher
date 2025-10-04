@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createTwelveLabsClient } from "@/lib/twelvelabs";
 import { createOpenAISearchClient } from "@/lib/openai-search";
 import { db } from "@/lib/db";
-import { videos, adMoments, adRecommendations } from "@/lib/db/schema";
+import {
+  videos,
+  adMoments,
+  adRecommendations,
+  brandMentions as brandMentionsTable,
+  brandMentionRecommendations as brandMentionRecsTable,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
@@ -37,7 +43,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Transform to match expected format
+      // Fetch existing brand mentions with recommendations
+      const existingBrandMentions = await db.query.brandMentions.findMany({
+        where: eq(brandMentionsTable.videoId, videoId),
+        with: {
+          recommendations: true,
+        },
+      });
+
+      // Transform moments to match expected format
       const transformedMoments = existingMoments.map((moment) => ({
         id: moment.id,
         startTime: moment.startTime,
@@ -62,10 +76,32 @@ export async function POST(request: NextRequest) {
         })),
       }));
 
+      // Transform brand mentions to match expected format
+      const transformedBrandMentions = existingBrandMentions.map((mention) => ({
+        timestamp: mention.timestamp,
+        timeInSeconds: mention.timeInSeconds,
+        description: mention.description,
+        type: mention.type as "brand_mention" | "ad_opportunity",
+        recommendations: (mention.recommendations || []).map((rec) => ({
+          productName: rec.productName,
+          brandName: rec.brandName || "",
+          description: rec.description || "",
+          productUrl: rec.productUrl || "",
+          imageUrl: rec.imageUrl || "",
+          reasoning: rec.reasoning || "",
+          relevanceScore: rec.relevanceScore || 0,
+        })),
+      }));
+
+      console.log(
+        `Returning cached: ${transformedMoments.length} moments, ${transformedBrandMentions.length} brand mentions`
+      );
+
       return NextResponse.json({
         success: true,
         cached: true,
         moments: transformedMoments,
+        brandMentions: transformedBrandMentions,
       });
     }
 
@@ -87,10 +123,101 @@ export async function POST(request: NextRequest) {
     const twelveLabsClient = createTwelveLabsClient();
     const openAIClient = createOpenAISearchClient();
 
-    // Analyze video for ad moments using Twelve Labs
+    // PART 1: AI-powered brand mention and ad opportunity detection
     console.log(
-      `Starting analysis for video ${videoId} in index ${indexId}...`
+      `🎯 Starting AI analysis for brand mentions and ad opportunities...`
     );
+    const brandMentionsRaw = await twelveLabsClient.analyzeForBrandMentions(
+      videoId
+    );
+    console.log(
+      `✅ Found ${brandMentionsRaw.length} brand mentions/ad opportunities`
+    );
+
+    // Get product recommendations for each brand mention
+    console.log(`🛍️ Generating product recommendations for brand mentions...`);
+    const brandMentions = await Promise.all(
+      brandMentionsRaw.map(async (mention) => {
+        try {
+          console.log(
+            `  Getting recommendations for: ${mention.description.substring(
+              0,
+              50
+            )}...`
+          );
+          const recommendations = await openAIClient.findRelevantProducts(
+            mention.description,
+            "neutral", // Brand mentions don't have emotional tone
+            mention.type === "brand_mention" ? "product" : "general"
+          );
+          console.log(`  ✅ Got ${recommendations.length} recommendations`);
+          return {
+            ...mention,
+            recommendations: recommendations.slice(0, 3), // Top 3 recommendations
+          };
+        } catch (error) {
+          console.error(
+            `  ❌ Failed to get recommendations for mention:`,
+            error
+          );
+          return {
+            ...mention,
+            recommendations: [],
+          };
+        }
+      })
+    );
+    console.log(
+      `✅ Added recommendations to ${brandMentions.length} brand mentions`
+    );
+
+    // Save brand mentions to database
+    console.log(`💾 Saving brand mentions to database...`);
+    for (const mention of brandMentions) {
+      try {
+        // Save brand mention
+        const [savedMention] = await db
+          .insert(brandMentionsTable)
+          .values({
+            videoId: dbVideo[0].id,
+            timestamp: mention.timestamp,
+            timeInSeconds: mention.timeInSeconds,
+            description: mention.description,
+            type: mention.type,
+          })
+          .returning();
+
+        console.log(`  ✅ Saved brand mention: ${savedMention.id}`);
+
+        // Save recommendations for this mention
+        if (mention.recommendations && mention.recommendations.length > 0) {
+          for (const rec of mention.recommendations) {
+            await db.insert(brandMentionRecsTable).values({
+              brandMentionId: savedMention.id,
+              productName: rec.productName,
+              brandName: rec.brandName || null,
+              description: rec.description || null,
+              productUrl: rec.productUrl || null,
+              imageUrl: rec.imageUrl || null,
+              reasoning: rec.reasoning || null,
+              relevanceScore: rec.relevanceScore || 0,
+            });
+          }
+          console.log(
+            `    ✅ Saved ${mention.recommendations.length} recommendations`
+          );
+        }
+      } catch (error) {
+        console.error(`  ❌ Failed to save brand mention:`, error);
+      }
+    }
+    console.log(`✅ Saved ${brandMentions.length} brand mentions to database`);
+
+    // PART 2: Semantic search for ad moments
+    console.log(
+      `🔍 Starting semantic search analysis for video ${videoId} in index ${indexId}...`
+    );
+
     const moments = await twelveLabsClient.analyzeForAdMoments(
       indexId,
       videoId
@@ -265,12 +392,13 @@ export async function POST(request: NextRequest) {
       .where(eq(videos.id, dbVideo[0].id));
 
     console.log(
-      `Analysis complete, returning ${processedMoments.length} moments`
+      `Analysis complete, returning ${processedMoments.length} moments and ${brandMentions.length} brand mentions`
     );
 
     return NextResponse.json({
       success: true,
       moments: processedMoments,
+      brandMentions: brandMentions,
     });
   } catch (error: unknown) {
     console.error("Analysis error:", error);

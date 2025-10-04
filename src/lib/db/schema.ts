@@ -49,9 +49,38 @@ export const adRecommendations = pgTable("ad_recommendations", {
   selected: boolean("selected").default(false),
 });
 
+export const brandMentions = pgTable("brand_mentions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  videoId: text("video_id")
+    .references(() => videos.id)
+    .notNull(),
+  timestamp: text("timestamp").notNull(), // MM:SS format
+  timeInSeconds: integer("time_in_seconds").notNull(),
+  description: text("description").notNull(),
+  type: text("type").notNull(), // brand_mention or ad_opportunity
+});
+
+export const brandMentionRecommendations = pgTable(
+  "brand_mention_recommendations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    brandMentionId: uuid("brand_mention_id")
+      .references(() => brandMentions.id)
+      .notNull(),
+    productName: text("product_name").notNull(),
+    brandName: text("brand_name"),
+    description: text("description"),
+    productUrl: text("product_url"),
+    imageUrl: text("image_url"),
+    reasoning: text("reasoning"),
+    relevanceScore: integer("relevance_score"), // 0-100
+  }
+);
+
 // Relations
 export const videosRelations = relations(videos, ({ many }) => ({
   moments: many(adMoments),
+  brandMentions: many(brandMentions),
 }));
 
 export const adMomentsRelations = relations(adMoments, ({ one, many }) => ({
@@ -68,6 +97,27 @@ export const adRecommendationsRelations = relations(
     moment: one(adMoments, {
       fields: [adRecommendations.momentId],
       references: [adMoments.id],
+    }),
+  })
+);
+
+export const brandMentionsRelations = relations(
+  brandMentions,
+  ({ one, many }) => ({
+    video: one(videos, {
+      fields: [brandMentions.videoId],
+      references: [videos.id],
+    }),
+    recommendations: many(brandMentionRecommendations),
+  })
+);
+
+export const brandMentionRecommendationsRelations = relations(
+  brandMentionRecommendations,
+  ({ one }) => ({
+    brandMention: one(brandMentions, {
+      fields: [brandMentionRecommendations.brandMentionId],
+      references: [brandMentions.id],
     }),
   })
 );

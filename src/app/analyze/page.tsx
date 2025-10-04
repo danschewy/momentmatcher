@@ -19,6 +19,23 @@ export default function AnalyzePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedMoment, setSelectedMoment] = useState<AdMoment | null>(null);
   const [adMoments, setAdMoments] = useState<AdMoment[]>([]);
+  const [brandMentions, setBrandMentions] = useState<
+    Array<{
+      timestamp: string;
+      timeInSeconds: number;
+      description: string;
+      type: "brand_mention" | "ad_opportunity";
+      recommendations?: Array<{
+        productName: string;
+        brandName: string;
+        description: string;
+        productUrl: string;
+        imageUrl?: string;
+        reasoning: string;
+        relevanceScore: number;
+      }>;
+    }>
+  >([]);
   const [selectedVideoInfo, setSelectedVideoInfo] = useState<{
     indexId: string;
     videoId: string;
@@ -78,6 +95,7 @@ export default function AnalyzePage() {
         "First moment recommendations:",
         analysisData.moments?.[0]?.recommendations
       );
+      console.log("Brand mentions:", analysisData.brandMentions);
 
       if (analysisData.moments && analysisData.moments.length > 0) {
         setAdMoments(analysisData.moments);
@@ -87,6 +105,12 @@ export default function AnalyzePage() {
           analysisData.moments[0].recommendations?.length,
           "recommendations"
         );
+      }
+
+      // Set brand mentions
+      if (analysisData.brandMentions) {
+        setBrandMentions(analysisData.brandMentions);
+        console.log(`Set ${analysisData.brandMentions.length} brand mentions`);
       } else {
         console.warn("No moments found in analysis");
       }
@@ -567,6 +591,129 @@ export default function AnalyzePage() {
                 onTimeUpdate={setCurrentTime}
               />
             </div>
+
+            {/* Brand Mentions & Ad Opportunities */}
+            {brandMentions.length > 0 && (
+              <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 border border-purple-700/50 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">
+                      AI-Detected Brand Mentions & Ad Opportunities
+                    </h3>
+                    <p className="text-sm text-purple-300">
+                      {brandMentions.length} moments identified by AI analysis
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {brandMentions.map((mention, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
+                        mention.type === "brand_mention"
+                          ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
+                          : "bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50"
+                      }`}
+                      onClick={() => {
+                        // Seek to this timestamp in the video
+                        const videoElement = document.querySelector("video");
+                        if (videoElement) {
+                          videoElement.currentTime = mention.timeInSeconds;
+                        }
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              mention.type === "brand_mention"
+                                ? "bg-purple-600 text-white"
+                                : "bg-indigo-600 text-white"
+                            }`}
+                          >
+                            {mention.type === "brand_mention"
+                              ? "🏷️ Brand Mention"
+                              : "⚡ Ad Opportunity"}
+                          </span>
+                          <span className="text-purple-300 font-mono text-sm">
+                            {mention.timestamp}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                        {mention.description}
+                      </p>
+
+                      {/* Product Recommendations */}
+                      {mention.recommendations &&
+                        mention.recommendations.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-purple-500/20">
+                            <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
+                              💡 Recommended Products (
+                              {mention.recommendations.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {mention.recommendations.map((rec, recIdx) => (
+                                <div
+                                  key={recIdx}
+                                  className="p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+                                  onClick={(e) => e.stopPropagation()} // Prevent video seek when clicking
+                                >
+                                  <div className="flex items-start justify-between mb-1">
+                                    <div className="flex-1">
+                                      <h5 className="text-sm font-semibold text-white">
+                                        {rec.productName}
+                                      </h5>
+                                      <p className="text-xs text-purple-300">
+                                        {rec.brandName}
+                                      </p>
+                                    </div>
+                                    <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
+                                      {rec.relevanceScore}%
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-400 mb-2">
+                                    {rec.description}
+                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs text-gray-500 italic">
+                                      {rec.reasoning}
+                                    </p>
+                                    <a
+                                      href={rec.productUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition ml-2 flex-shrink-0"
+                                    >
+                                      Learn More
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Timeline */}
             <VideoTimeline

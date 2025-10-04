@@ -304,6 +304,119 @@ class TwelveLabsClient {
     }
   }
 
+  async analyzeForBrandMentions(videoId: string): Promise<
+    {
+      timestamp: string;
+      timeInSeconds: number;
+      description: string;
+      type: "brand_mention" | "ad_opportunity";
+    }[]
+  > {
+    try {
+      console.log(
+        "🎯 Calling Twelve Labs Analyze endpoint for brand analysis..."
+      );
+
+      const response = await axios.post(
+        `${TWELVE_LABS_API_URL}/analyze`,
+        {
+          video_id: videoId,
+          prompt: `Analyze this video and identify ALL moments where:
+1. Brands, products, or services are explicitly mentioned by name
+2. Products or services are shown or demonstrated
+3. High-energy, exciting moments that would be ideal for advertisements
+4. Emotional peaks (positive excitement, inspiration, motivation)
+5. Moments discussing problems that products could solve
+
+For each moment, provide the exact timestamp in MM:SS format, a clear description of what's happening and why it's relevant for advertising, and classify it as either a "brand_mention" (for explicit brand/product mentions) or "ad_opportunity" (for high-energy moments ideal for ads).
+
+Be thorough and identify as many relevant moments as possible.`,
+          temperature: 0.3,
+          stream: false,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              type: "object",
+              properties: {
+                moments: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      timestamp: {
+                        type: "string",
+                        description: "Timestamp in MM:SS format",
+                      },
+                      description: {
+                        type: "string",
+                        description: "Detailed description of the moment",
+                      },
+                      type: {
+                        type: "string",
+                        enum: ["brand_mention", "ad_opportunity"],
+                        description: "Type of moment",
+                      },
+                    },
+                    required: ["timestamp", "description", "type"],
+                  },
+                },
+              },
+              required: ["moments"],
+            },
+          },
+          max_tokens: 4000,
+        },
+        {
+          headers: {
+            ...this.getHeaders(),
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const responseData = response.data.data;
+      console.log("📝 Raw response:", responseData);
+
+      // Parse the JSON response
+      const parsed =
+        typeof responseData === "string"
+          ? JSON.parse(responseData)
+          : responseData;
+
+      const moments = parsed.moments || [];
+
+      console.log(
+        `✅ Found ${moments.length} brand/ad moments from AI analysis`
+      );
+
+      // Convert timestamps to seconds and ensure proper structure
+      return moments.map((moment: Record<string, unknown>) => {
+        const timestamp = (moment.timestamp as string) || "0:00";
+        const [minutes, seconds] = timestamp.split(":").map(Number);
+        return {
+          timestamp,
+          timeInSeconds: minutes * 60 + seconds,
+          description: (moment.description as string) || "",
+          type:
+            (moment.type as "brand_mention" | "ad_opportunity") ||
+            "ad_opportunity",
+        };
+      });
+    } catch (error: unknown) {
+      const errorData = axios.isAxiosError(error)
+        ? error.response?.data
+        : undefined;
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.error(
+        "Error analyzing for brand mentions:",
+        errorData || errorMessage
+      );
+      // Return empty array instead of throwing to not break the entire analysis
+      return [];
+    }
+  }
+
   async getTranscript(
     indexId: string,
     videoId: string,
