@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Upload, Target, Sparkles, TrendingUp, Video } from "lucide-react";
+import { Target, Sparkles, TrendingUp, Video } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
-  const [isDragging, setIsDragging] = useState(false);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-indigo-950">
       {/* Header */}
@@ -64,52 +61,35 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Upload Section */}
-        <div className="max-w-3xl mx-auto">
-          <Link href="/analyze">
-            <div
-              className={`
-                relative border-2 border-dashed rounded-2xl p-16
-                transition-all duration-300 cursor-pointer
-                ${
-                  isDragging
-                    ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-gray-700 hover:border-indigo-500/50 bg-gray-800/50"
-                }
-              `}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-              }}
-            >
-              <div className="flex flex-col items-center gap-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <Upload className="w-10 h-10 text-white" />
-                </div>
-
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-white mb-2">
-                    Upload Your Video
-                  </h3>
-                  <p className="text-gray-400">
-                    Drag and drop or click to select your video file
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Supports MP4, MOV, AVI up to 2GB
-                  </p>
-                </div>
-
-                <button className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/25">
-                  Get Started
-                </button>
+        {/* CTA Section */}
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 border-2 border-gray-700 rounded-3xl p-12 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-8 text-center">
+              <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/50">
+                <Video className="w-14 h-14 text-white" />
               </div>
+
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-3">
+                  Ready to Optimize Your Ad Inventory?
+                </h3>
+                <p className="text-lg text-gray-400">
+                  Analyze your videos and discover premium ad placement
+                  opportunities
+                </p>
+              </div>
+
+              <Link href="/analyze" className="w-full max-w-md">
+                <button className="w-full px-12 py-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all transform hover:scale-[1.02] shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50">
+                  Enter Now →
+                </button>
+              </Link>
+
+              <p className="text-sm text-gray-500">
+                Select from your library or enter a video URL to begin
+              </p>
             </div>
-          </Link>
+          </div>
         </div>
       </section>
 

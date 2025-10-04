@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { adMoments, adRecommendations } from "@/lib/db/schema";
+import {
+  adMoments,
+  adRecommendations,
+  brandMentions,
+  brandMentionRecommendations,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -31,8 +36,30 @@ export async function GET(
       })
     );
 
+    // Get all brand mentions for this video
+    const mentions = await db
+      .select()
+      .from(brandMentions)
+      .where(eq(brandMentions.videoId, videoId));
+
+    // Get recommendations for each brand mention
+    const mentionsWithRecs = await Promise.all(
+      mentions.map(async (mention) => {
+        const recs = await db
+          .select()
+          .from(brandMentionRecommendations)
+          .where(eq(brandMentionRecommendations.brandMentionId, mention.id));
+
+        return {
+          ...mention,
+          recommendations: recs,
+        };
+      })
+    );
+
     return NextResponse.json({
       moments: momentsWithRecs,
+      brandMentions: mentionsWithRecs,
     });
   } catch (error: unknown) {
     console.error("Error fetching moments:", error);

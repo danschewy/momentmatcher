@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
           reasoning: rec.reasoning || "",
           relevanceScore: rec.relevanceScore || 0,
           selected: rec.selected || false,
+          estimatedCPM: rec.estimatedCPM || null,
+          estimatedCTR: rec.estimatedCTR || null,
+          projectedRevenue: rec.projectedRevenue || null,
         })),
       }));
 
@@ -90,6 +93,9 @@ export async function POST(request: NextRequest) {
           imageUrl: rec.imageUrl || "",
           reasoning: rec.reasoning || "",
           relevanceScore: rec.relevanceScore || 0,
+          estimatedCPM: rec.estimatedCPM || null,
+          estimatedCTR: rec.estimatedCTR || null,
+          projectedRevenue: rec.projectedRevenue || null,
         })),
       }));
 
@@ -201,6 +207,16 @@ export async function POST(request: NextRequest) {
               imageUrl: rec.imageUrl || null,
               reasoning: rec.reasoning || null,
               relevanceScore: rec.relevanceScore || 0,
+              // Revenue projections
+              estimatedCPM: rec.estimatedCPM
+                ? Math.round(rec.estimatedCPM)
+                : null,
+              estimatedCTR: rec.estimatedCTR
+                ? Math.round(rec.estimatedCTR * 10)
+                : null, // Store as integer (2.5% = 25)
+              projectedRevenue: rec.projectedRevenue
+                ? Math.round(rec.projectedRevenue * 100)
+                : null, // Store in cents
             });
           }
           console.log(
@@ -339,6 +355,16 @@ export async function POST(request: NextRequest) {
               reasoning: rec.reasoning || null,
               relevanceScore: rec.relevanceScore || 0,
               selected: savedRecommendations.length === 0, // Auto-select first recommendation
+              // Revenue projections
+              estimatedCPM: rec.estimatedCPM
+                ? Math.round(rec.estimatedCPM)
+                : null,
+              estimatedCTR: rec.estimatedCTR
+                ? Math.round(rec.estimatedCTR * 10)
+                : null, // Store as integer (2.5% = 25)
+              projectedRevenue: rec.projectedRevenue
+                ? Math.round(rec.projectedRevenue * 100)
+                : null, // Store in cents
             })
             .returning();
           console.log(`✅ Saved recommendation with ID: ${savedRec.id}`);
@@ -354,6 +380,9 @@ export async function POST(request: NextRequest) {
             reasoning: savedRec.reasoning || "",
             relevanceScore: savedRec.relevanceScore || 0,
             selected: savedRec.selected || false,
+            estimatedCPM: savedRec.estimatedCPM || null,
+            estimatedCTR: savedRec.estimatedCTR || null,
+            projectedRevenue: savedRec.projectedRevenue || null,
           });
         } catch (insertError: unknown) {
           console.error(

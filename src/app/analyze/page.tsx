@@ -14,6 +14,7 @@ export default function AnalyzePage() {
   const [mode, setMode] = useState<"select" | "upload">("select"); // New state for mode
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string>("");
   const [isAnalyzed, setIsAnalyzed] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [currentTime, setCurrentTime] = useState(0);
@@ -58,9 +59,31 @@ export default function AnalyzePage() {
     setMode("select");
     setSelectedVideoInfo({ indexId, videoId, filename });
     setIsProcessing(true);
+    setProcessingStatus("Checking video status...");
 
     try {
-      // Fetch video details including HLS URL
+      // First, check if video is fully indexed
+      const dbStatusResponse = await fetch(`/api/videos/${videoId}/status`);
+      const dbStatus = await dbStatusResponse.json();
+      
+      console.log("Video DB status:", dbStatus);
+
+      // If not completed, poll until ready
+      if (dbStatus.status !== "completed") {
+        setProcessingStatus("Video is still indexing... This may take 1-5 minutes.");
+        console.log("Video not ready, polling for completion...");
+        
+        const isReady = await pollVideoStatus(videoId, indexId);
+        if (!isReady) {
+          alert("Video indexing timed out. Please try again later.");
+          setIsProcessing(false);
+          setProcessingStatus("");
+          return;
+        }
+      }
+
+      // Video is indexed, now fetch video details including HLS URL
+      setProcessingStatus("Loading video...");
       const videoResponse = await fetch(
         `/api/indexes/${indexId}/videos/${videoId}`
       );
@@ -78,10 +101,14 @@ export default function AnalyzePage() {
           "This video doesn't have HLS streaming enabled. Please ensure videos are uploaded with enable_video_stream=true"
         );
         setIsProcessing(false);
+        setProcessingStatus("");
         return;
       }
 
       // Trigger real analysis
+      setProcessingStatus(
+        "Analyzing video moments and detecting ad opportunities..."
+      );
       const analysisResponse = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,6 +148,7 @@ export default function AnalyzePage() {
       alert("Failed to analyze video. Please try again.");
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("");
     }
   };
 
@@ -288,6 +316,7 @@ export default function AnalyzePage() {
     if (!file) return;
 
     setIsProcessing(true);
+    setProcessingStatus("Uploading video to Twelve Labs...");
 
     try {
       // Upload video to server
@@ -314,6 +343,7 @@ export default function AnalyzePage() {
           alert("Failed to upload video. Please try again.");
         }
         setIsProcessing(false);
+        setProcessingStatus("");
         return;
       }
 
@@ -328,6 +358,9 @@ export default function AnalyzePage() {
         uploadData.status === "processing" ||
         uploadData.status === "validating"
       ) {
+        setProcessingStatus(
+          `Indexing video... (${uploadData.estimatedTime || "1-5 minutes"})`
+        );
         console.log(
           `Video uploaded, indexing in progress... (${uploadData.estimatedTime})`
         );
@@ -363,6 +396,7 @@ export default function AnalyzePage() {
       );
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("");
     }
   };
 
@@ -540,10 +574,12 @@ export default function AnalyzePage() {
 
               {!isProcessing ? (
                 <>
-                  <HLSVideoPlayer
+                  {/* Use native video element for blob URL preview */}
+                  <video
                     src={videoUrl}
                     className="w-full rounded-lg mb-6"
                     controls
+                    playsInline
                   />
 
                   <div className="flex items-center justify-between">
@@ -557,19 +593,20 @@ export default function AnalyzePage() {
                       className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105"
                     >
                       <TrendingUp className="w-5 h-5" />
-                      Start Analysis
+                      Upload & Analyze
                     </button>
                   </div>
                 </>
               ) : (
                 <div className="py-12">
                   <h4 className="text-xl font-bold text-white text-center mb-8">
-                    Analyzing Your Content...
+                    {processingStatus || "Processing..."}
                   </h4>
                   <ProcessingAnimation />
                   <p className="text-center text-gray-400 mt-8 text-sm">
-                    This may take a few moments. We&apos;re understanding every
-                    frame, word, and emotion.
+                    {processingStatus.includes("Indexing")
+                      ? "This typically takes 1-5 minutes depending on video length."
+                      : "This may take a few moments. We're understanding every frame, word, and emotion."}
                   </p>
                 </div>
               )}
@@ -581,9 +618,30 @@ export default function AnalyzePage() {
           <div className="space-y-6">
             {/* Video Player */}
             <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
-              <h3 className="text-2xl font-bold text-white mb-4">
-                {selectedVideoInfo?.filename || file?.name || "Video"}
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl font-bold text-white">
+                  {selectedVideoInfo?.filename || file?.name || "Video"}
+                </h3>
+                <Link
+                  href={`/dashboard/${selectedVideoInfo?.videoId || ""}`}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                  View Dashboard
+                </Link>
+              </div>
               <HLSVideoPlayer
                 src={videoUrl}
                 className="w-full rounded-lg"

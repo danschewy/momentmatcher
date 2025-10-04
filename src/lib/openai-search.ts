@@ -8,6 +8,10 @@ export interface ProductRecommendation {
   imageUrl?: string;
   reasoning: string;
   relevanceScore: number;
+  // Revenue projections
+  estimatedCPM?: number; // Cost per 1000 impressions
+  estimatedCTR?: number; // Click-through rate percentage
+  projectedRevenue?: number; // Estimated revenue per placement
 }
 
 class OpenAISearchClient {
@@ -39,6 +43,9 @@ For each recommendation, provide:
 2. Brief description
 3. Why it's a good fit for this moment
 4. Relevance score (0-100)
+5. Estimated CPM (Cost per 1000 impressions) in USD - provide a realistic estimate based on industry standards for this product category
+6. Estimated CTR (Click-through rate) as a percentage - provide a realistic estimate based on ad relevance and placement
+7. Projected Revenue per placement in USD - calculate this based on: (estimatedCPM * estimatedCTR * 10) as a rough estimate
 
 IMPORTANT: Return your response as a JSON object with a "recommendations" array containing exactly 3 products.
 
@@ -50,7 +57,10 @@ Format your response exactly like this:
       "brandName": "string", 
       "description": "string",
       "reasoning": "string",
-      "relevanceScore": number
+      "relevanceScore": number,
+      "estimatedCPM": number,
+      "estimatedCTR": number,
+      "projectedRevenue": number
     }
   ]
 }`;
@@ -138,6 +148,11 @@ Format your response exactly like this:
         relevanceScore: (rec.relevanceScore ||
           rec.relevance_score ||
           75) as number,
+        estimatedCPM: (rec.estimatedCPM || rec.estimated_cpm || 15) as number,
+        estimatedCTR: (rec.estimatedCTR || rec.estimated_ctr || 2.5) as number,
+        projectedRevenue: (rec.projectedRevenue ||
+          rec.projected_revenue ||
+          3.75) as number,
       }));
 
       console.log(`✅ Mapped ${mapped.length} recommendations successfully`);
@@ -166,6 +181,9 @@ Format your response exactly like this:
           productUrl: "https://www.coursera.org",
           reasoning: "Perfect for educational content viewers",
           relevanceScore: 85,
+          estimatedCPM: 18,
+          estimatedCTR: 3.2,
+          projectedRevenue: 5.76,
         },
         {
           productName: "Skillshare Premium",
@@ -174,6 +192,9 @@ Format your response exactly like this:
           productUrl: "https://www.skillshare.com",
           reasoning: "Appeals to viewers interested in skill development",
           relevanceScore: 82,
+          estimatedCPM: 16,
+          estimatedCTR: 3.0,
+          projectedRevenue: 4.8,
         },
       ],
       travel: [
@@ -184,6 +205,9 @@ Format your response exactly like this:
           productUrl: "https://www.airbnb.com",
           reasoning: "Perfect for travel enthusiasts",
           relevanceScore: 88,
+          estimatedCPM: 22,
+          estimatedCTR: 4.1,
+          projectedRevenue: 9.02,
         },
         {
           productName: "Booking.com Genius",
@@ -192,6 +216,9 @@ Format your response exactly like this:
           productUrl: "https://www.booking.com",
           reasoning: "Ideal for destination planning",
           relevanceScore: 85,
+          estimatedCPM: 20,
+          estimatedCTR: 3.8,
+          projectedRevenue: 7.6,
         },
       ],
       food: [
@@ -202,6 +229,9 @@ Format your response exactly like this:
           productUrl: "https://www.hellofresh.com",
           reasoning: "Perfect for cooking and food enthusiasts",
           relevanceScore: 86,
+          estimatedCPM: 17,
+          estimatedCTR: 3.4,
+          projectedRevenue: 5.78,
         },
         {
           productName: "MasterClass Cooking",
@@ -210,6 +240,9 @@ Format your response exactly like this:
           productUrl: "https://www.masterclass.com",
           reasoning: "Elevate culinary skills",
           relevanceScore: 83,
+          estimatedCPM: 19,
+          estimatedCTR: 3.1,
+          projectedRevenue: 5.89,
         },
       ],
       fashion: [
@@ -220,6 +253,9 @@ Format your response exactly like this:
           productUrl: "https://www.stitchfix.com",
           reasoning: "Personalized fashion recommendations",
           relevanceScore: 84,
+          estimatedCPM: 21,
+          estimatedCTR: 3.6,
+          projectedRevenue: 7.56,
         },
       ],
       fitness: [
@@ -230,6 +266,9 @@ Format your response exactly like this:
           productUrl: "https://www.onepeloton.com",
           reasoning: "Matches fitness and wellness content",
           relevanceScore: 87,
+          estimatedCPM: 24,
+          estimatedCTR: 4.3,
+          projectedRevenue: 10.32,
         },
         {
           productName: "Nike Training Club",
@@ -238,6 +277,9 @@ Format your response exactly like this:
           productUrl: "https://www.nike.com/ntc-app",
           reasoning: "Perfect for active lifestyle",
           relevanceScore: 85,
+          estimatedCPM: 22,
+          estimatedCTR: 4.0,
+          projectedRevenue: 8.8,
         },
       ],
       technology: [
@@ -248,6 +290,9 @@ Format your response exactly like this:
           productUrl: "https://www.apple.com/apple-one",
           reasoning: "Tech enthusiast bundle",
           relevanceScore: 86,
+          estimatedCPM: 25,
+          estimatedCTR: 3.9,
+          projectedRevenue: 9.75,
         },
       ],
       productivity: [
@@ -258,6 +303,9 @@ Format your response exactly like this:
           productUrl: "https://www.notion.so",
           reasoning: "Perfect for productivity optimization",
           relevanceScore: 88,
+          estimatedCPM: 20,
+          estimatedCTR: 3.7,
+          projectedRevenue: 7.4,
         },
       ],
       product: [
@@ -268,6 +316,9 @@ Format your response exactly like this:
           productUrl: "https://www.amazon.com/prime",
           reasoning: "General product interest",
           relevanceScore: 75,
+          estimatedCPM: 15,
+          estimatedCTR: 2.8,
+          projectedRevenue: 4.2,
         },
       ],
       lifestyle: [
@@ -278,6 +329,9 @@ Format your response exactly like this:
           productUrl: "https://www.calm.com",
           reasoning: "Wellness and lifestyle alignment",
           relevanceScore: 82,
+          estimatedCPM: 18,
+          estimatedCTR: 3.3,
+          projectedRevenue: 5.94,
         },
       ],
       entertainment: [
@@ -288,6 +342,9 @@ Format your response exactly like this:
           productUrl: "https://www.spotify.com",
           reasoning: "Entertainment content overlap",
           relevanceScore: 80,
+          estimatedCPM: 16,
+          estimatedCTR: 3.1,
+          projectedRevenue: 4.96,
         },
       ],
     };

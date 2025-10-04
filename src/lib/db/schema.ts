@@ -47,6 +47,10 @@ export const adRecommendations = pgTable("ad_recommendations", {
   reasoning: text("reasoning"), // Why this ad fits
   relevanceScore: integer("relevance_score"), // 0-100
   selected: boolean("selected").default(false),
+  // Revenue projections
+  estimatedCPM: integer("estimated_cpm"), // Cost per 1000 impressions
+  estimatedCTR: integer("estimated_ctr"), // Click-through rate as integer (multiply by 10, e.g. 2.5% = 25)
+  projectedRevenue: integer("projected_revenue"), // Estimated revenue in cents
 });
 
 export const brandMentions = pgTable("brand_mentions", {
@@ -74,6 +78,10 @@ export const brandMentionRecommendations = pgTable(
     imageUrl: text("image_url"),
     reasoning: text("reasoning"),
     relevanceScore: integer("relevance_score"), // 0-100
+    // Revenue projections
+    estimatedCPM: integer("estimated_cpm"), // Cost per 1000 impressions
+    estimatedCTR: integer("estimated_ctr"), // Click-through rate as integer (multiply by 10, e.g. 2.5% = 25)
+    projectedRevenue: integer("projected_revenue"), // Estimated revenue in cents
   }
 );
 
