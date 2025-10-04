@@ -2,16 +2,31 @@
   "name": "momentmatcher",
   "version": "0.1.0",
   "private": true,
+  "description": "AI-powered video ad placement that analyzes content to identify perfect moments for contextual advertising",
+  "author": "Your Name",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "setup": "npm install && npm run db:push",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.4"
+    "next": "15.5.4",
+    "@neondatabase/serverless": "^0.10.1",
+    "drizzle-orm": "^0.38.0",
+    "openai": "^4.77.0",
+    "axios": "^1.7.9",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "jspdf": "^2.5.2"
   },
   "devDependencies": {
     "typescript": "^5",
@@ -22,6 +37,7 @@
     "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
-    "@eslint/eslintrc": "^3"
+    "@eslint/eslintrc": "^3",
+    "drizzle-kit": "^0.28.1"
   }
 }
