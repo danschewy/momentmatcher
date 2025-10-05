@@ -11,6 +11,7 @@ import {
   Download,
   BarChart3,
 } from "lucide-react";
+import InfoTooltip from "@/components/InfoTooltip";
 
 interface Recommendation {
   productName: string;
@@ -333,6 +334,12 @@ export default function DashboardPage() {
             value={totalSpots.toString()}
             subtitle={`${premiumSpots} Premium, ${standardSpots} Standard`}
             color="indigo"
+            tooltip={{
+              title: "Total Ad Spots",
+              description: "Total number of identified advertising opportunities in this video, combining both brand mentions and ad moments.",
+              calculation: "Sum of all detected brand mentions and high-engagement ad placement opportunities. Each spot represents a distinct moment suitable for advertising.",
+              justification: "More ad spots mean more inventory to monetize. The quality tier breakdown shows how many are premium (80%+ engagement), standard (60-80%), or basic (<60%)."
+            }}
           />
           <MetricCard
             icon={<TrendingUp className="w-6 h-6" />}
@@ -340,6 +347,12 @@ export default function DashboardPage() {
             value={`${avgEngagement.toFixed(0)}%`}
             subtitle={`Attention: ${avgAttention.toFixed(0)}%`}
             color="purple"
+            tooltip={{
+              title: "Average Engagement",
+              description: "Mean engagement score across all ad spots, indicating overall content quality for advertising. Attention score shows how much focus viewers give to content.",
+              calculation: "Average of all spot engagement scores. Engagement = (Emotional Intensity × 60%) + (AI Confidence × 40%). Attention = (AI Confidence × 70%) + (Emotional Intensity × 30%).",
+              justification: "Higher average engagement means your video consistently maintains viewer interest, making it more valuable to advertisers. Videos with 70%+ average engagement command premium rates."
+            }}
           />
           <MetricCard
             icon={<BarChart3 className="w-6 h-6" />}
@@ -347,6 +360,12 @@ export default function DashboardPage() {
             value={`$${avgCpmMin.toFixed(2)}-$${avgCpmMax.toFixed(2)}`}
             subtitle="Per spot"
             color="blue"
+            tooltip={{
+              title: "Average CPM Range",
+              description: "Average Cost Per Mille (per 1,000 impressions) across all ad spots. This is the typical rate advertisers pay for each placement.",
+              calculation: "Average of all spot CPM values, which are based on industry-standard rates by category (Finance: $20-40, Tech: $10-22, Sports: $10-18, etc.) adjusted by quality tier multipliers.",
+              justification: "CPM directly determines revenue potential. A higher average CPM means your video's ad inventory is more valuable, driven by content category and engagement quality."
+            }}
           />
           <MetricCard
             icon={<DollarSign className="w-6 h-6" />}
@@ -354,6 +373,12 @@ export default function DashboardPage() {
             value={`$${totalMinValue.toFixed(2)}-$${totalMaxValue.toFixed(2)}`}
             subtitle="Estimated range"
             color="green"
+            tooltip={{
+              title: "Total Inventory Value",
+              description: "Estimated total advertising revenue potential if all ad spots are sold at their calculated CPM rates. This represents the full monetization opportunity.",
+              calculation: "Sum of all individual spot CPM values (min and max ranges). Assumes 1,000 impressions per spot. Actual revenue will vary based on view count and fill rate.",
+              justification: "This metric shows the complete revenue opportunity for your video. With sufficient views, filling all spots at these rates represents your maximum potential advertising income."
+            }}
           />
         </div>
 
@@ -363,10 +388,18 @@ export default function DashboardPage() {
             <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center">
               <Target className="w-7 h-7 text-white" />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">
-                Ad Placement Quality Analysis
-              </h2>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white">
+                  Ad Placement Quality Analysis
+                </h2>
+                <InfoTooltip
+                  title="Ad Placement Quality Analysis"
+                  description="Breaks down your ad inventory by quality tier. Each tier represents different engagement levels and CPM multipliers that affect revenue potential."
+                  calculation="Spots are categorized as Premium (80%+ avg engagement/attention), Standard (60-80%), or Basic (<60%). Premium gets +30% CPM, Standard uses base CPM, Basic gets -30% CPM."
+                  justification="Understanding your spot quality distribution helps optimize content strategy. More premium spots mean higher overall revenue, while the mix shows content consistency and monetization potential."
+                />
+              </div>
               <p className="text-sm text-indigo-300">
                 Spot value based on engagement, attention, and content category
               </p>
@@ -435,9 +468,17 @@ export default function DashboardPage() {
         <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Recommended Products & Brands
-              </h2>
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-2xl font-bold text-white">
+                  Recommended Products & Brands
+                </h2>
+                <InfoTooltip
+                  title="Product Recommendations"
+                  description="Curated list of products and brands that match your video content. These are AI-selected sponsorship opportunities based on contextual relevance and audience fit."
+                  calculation="Aggregates all product recommendations across all ad spots, showing unique products. Each product is matched using GPT-4 analysis of video content, emotional context, and category alignment."
+                  justification="Contextually relevant sponsorships perform 3-5x better than generic ads. These recommendations help you find authentic brand partnerships that align with your content and resonate with your audience."
+                />
+              </div>
               <p className="text-sm text-gray-400">
                 {uniqueProducts.length} unique products optimized for your
                 content
@@ -478,23 +519,44 @@ export default function DashboardPage() {
 
                     {/* Revenue Metrics */}
                     <div className="flex gap-4 text-sm">
-                      <div>
+                      <div className="flex items-center gap-1">
                         <span className="text-gray-500">CPM:</span>{" "}
                         <span className="text-green-400 font-semibold">
                           ${formatCPM(rec.estimatedCPM).toFixed(2)}
                         </span>
+                        <InfoTooltip
+                          title="Product CPM"
+                          description="Expected advertising rate for this specific product placement. This is what the advertiser would pay per 1,000 views featuring this product."
+                          calculation="Estimated based on product category, brand tier, and relevance to content. Factors include average market rates for the product category and the spot's engagement quality."
+                          justification="Product-specific CPM helps evaluate which sponsorships offer the best financial return. Premium brands in high-engagement spots command higher rates."
+                          size="sm"
+                        />
                       </div>
-                      <div>
+                      <div className="flex items-center gap-1">
                         <span className="text-gray-500">CTR:</span>{" "}
                         <span className="text-blue-400 font-semibold">
                           {formatCTR(rec.estimatedCTR).toFixed(2)}%
                         </span>
+                        <InfoTooltip
+                          title="Click-Through Rate (CTR)"
+                          description="Estimated percentage of viewers who will click on this product placement or sponsored link. Industry average is 0.5-2%."
+                          calculation="Projected based on relevance score, spot engagement, and historical performance data for similar product-content matches. Higher relevance and engagement predict higher CTR."
+                          justification="CTR directly impacts conversion and advertiser ROI. Higher CTR placements are more attractive to sponsors and can command premium rates due to better performance."
+                          size="sm"
+                        />
                       </div>
-                      <div>
+                      <div className="flex items-center gap-1">
                         <span className="text-gray-500">Est. Revenue:</span>{" "}
                         <span className="text-purple-400 font-semibold">
                           ${formatRevenue(rec.projectedRevenue).toFixed(2)}
                         </span>
+                        <InfoTooltip
+                          title="Projected Revenue"
+                          description="Estimated earnings from this product placement, combining CPM rate with expected performance metrics."
+                          calculation="Calculated as: (CPM × Expected Impressions / 1000) + (CTR × Impressions × Avg. Commission Rate). Assumes baseline of 1,000 impressions; scales with actual view count."
+                          justification="This gives you a concrete revenue estimate for each product placement, helping prioritize sponsorship opportunities and negotiate rates with brands."
+                          size="sm"
+                        />
                       </div>
                     </div>
                   </div>
@@ -523,12 +585,19 @@ function MetricCard({
   value,
   subtitle,
   color,
+  tooltip,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   subtitle?: string;
   color: "indigo" | "purple" | "blue" | "green";
+  tooltip?: {
+    title: string;
+    description: string;
+    calculation: string;
+    justification: string;
+  };
 }) {
   const colorClasses = {
     indigo:
@@ -547,7 +616,18 @@ function MetricCard({
       <div className="flex items-center gap-3 mb-3">
         <div className={`${colorClasses[color].split(" ")[4]}`}>{icon}</div>
       </div>
-      <p className="text-sm text-gray-400 mb-1">{label}</p>
+      <div className="flex items-center gap-2 mb-1">
+        <p className="text-sm text-gray-400">{label}</p>
+        {tooltip && (
+          <InfoTooltip
+            title={tooltip.title}
+            description={tooltip.description}
+            calculation={tooltip.calculation}
+            justification={tooltip.justification}
+            size="sm"
+          />
+        )}
+      </div>
       <p className="text-3xl font-bold text-white">{value}</p>
       {subtitle && <p className="text-xs text-gray-500 mt-2">{subtitle}</p>}
     </div>
