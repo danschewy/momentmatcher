@@ -760,10 +760,43 @@ function AnalyzePageContent() {
                   <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
                     <p className="text-sm text-purple-300">
                       ✨ AI-detected moments where brands, products, or
-                      high-energy opportunities were identified. Click any
-                      moment to jump to that timestamp in the video.
+                      high-energy opportunities were identified. Premium spots
+                      (gold) have 80%+ engagement.
                     </p>
                   </div>
+
+                  {/* Timeline for Brand Mentions */}
+                  <div className="mb-6">
+                    <VideoTimeline
+                      moments={brandMentions.map((mention) => ({
+                        id: `mention-${mention.timeInSeconds}`,
+                        startTime: mention.timeInSeconds,
+                        endTime: mention.timeInSeconds + 5, // 5 second duration
+                        context: mention.description,
+                        emotionalTone: "neutral",
+                        category: mention.type,
+                        confidence: 75,
+                        clipUrl: "",
+                        thumbnailUrl: "",
+                        recommendations: [],
+                        engagementScore: mention.engagementScore,
+                        attentionScore: mention.attentionScore,
+                        placementTier: mention.placementTier,
+                        estimatedCpmMin: mention.estimatedCpmMin,
+                        estimatedCpmMax: mention.estimatedCpmMax,
+                        categoryTags: mention.categoryTags,
+                      }))}
+                      currentTime={currentTime}
+                      onMomentClick={(moment) => {
+                        const videoElement = document.querySelector("video");
+                        if (videoElement) {
+                          videoElement.currentTime = moment.startTime;
+                        }
+                      }}
+                      selectedMoment={null}
+                    />
+                  </div>
+
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                     {brandMentions.map((mention, idx) => {
                       const tierStyle =
@@ -956,11 +989,12 @@ function AnalyzePageContent() {
                     <p className="text-sm text-indigo-300">
                       📺 Contextual ad placement opportunities based on video
                       analysis. Each moment includes emotional tone, category,
-                      and confidence score.
+                      and confidence score. Premium spots (gold) have 80%+
+                      engagement.
                     </p>
                   </div>
 
-                  {/* Timeline */}
+                  {/* Timeline - showing all ad moments */}
                   <div className="mb-6">
                     <VideoTimeline
                       moments={adMoments}

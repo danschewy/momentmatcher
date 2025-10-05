@@ -56,12 +56,25 @@ export default function VideoTimeline({
   if (moments.length === 0) return null;
 
   // Debug logging
-  console.log("VideoTimeline received moments:", moments.length);
-  console.log("First moment placementTier:", moments[0]?.placementTier);
+  console.log("=== VideoTimeline Debug ===");
+  console.log("Total moments:", moments.length);
+  console.log(
+    "Premium spots:",
+    moments.filter((m) => m.placementTier === "premium").length
+  );
+  console.log(
+    "Standard spots:",
+    moments.filter((m) => m.placementTier === "standard").length
+  );
+  console.log(
+    "Basic spots:",
+    moments.filter((m) => m.placementTier === "basic").length
+  );
   console.log(
     "All placement tiers:",
     moments.map((m) => m.placementTier)
   );
+  console.log("Sample moment:", moments[0]);
 
   const maxTime = Math.max(...moments.map((m) => m.endTime), 180);
 
@@ -104,7 +117,7 @@ export default function VideoTimeline({
 
       <div className="relative">
         {/* Timeline container with extra height for premium spots */}
-        <div className="relative h-24 bg-gray-900 rounded-lg overflow-visible px-2 py-2">
+        <div className="relative h-28 bg-gray-900 rounded-lg overflow-visible px-2 py-2">
           {/* Current time indicator */}
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-white z-30"
@@ -140,13 +153,13 @@ export default function VideoTimeline({
                 `}
                 style={{
                   left: `${leftPercent}%`,
-                  width: `${Math.max(widthPercent, 1)}%`,
+                  width: `${Math.max(widthPercent, 1.5)}%`,
                   height:
                     tier === "premium"
-                      ? "80px"
+                      ? "96px"
                       : tier === "standard"
-                      ? "60px"
-                      : "40px",
+                      ? "64px"
+                      : "44px",
                 }}
                 title={`${config.label} Spot: ${moment.context.substring(
                   0,
@@ -186,9 +199,12 @@ export default function VideoTimeline({
                   </div>
                 </div>
 
-                {/* Shimmer effect for premium spots */}
+                {/* Visual effects for premium spots */}
                 {tier === "premium" && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    <div className="absolute inset-0 animate-pulse opacity-30 bg-yellow-300" />
+                  </>
                 )}
               </button>
             );
