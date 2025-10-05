@@ -13,6 +13,7 @@ This document contains Mermaid diagrams visualizing the MomentMatcher system arc
 **[View all diagram images →](./diagrams/)**
 
 To regenerate diagrams after editing the Mermaid code below:
+
 ```bash
 ./scripts/generate-diagrams.sh
 ```
