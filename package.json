@@ -20,7 +20,8 @@
     "verify-index": "npx tsx scripts/verify-index.ts",
     "check-db": "npx tsx scripts/check-db.ts",
     "clear-analysis": "npx tsx scripts/clear-analysis.ts",
-    "generate-diagrams": "./scripts/generate-diagrams.sh"
+    "generate-diagrams": "./scripts/generate-diagrams.sh",
+    "generate-pitch-deck": "marp pitch-deck/PITCH_DECK.md --pdf --html --pptx --allow-local-files -o pitch-deck/MomentMatch-Pitch-Deck"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.1",
