@@ -1,0 +1,30 @@
+flowchart LR
+    A[API Response] --> B[Parse Moments]
+    B --> C[Extract Placement Tiers]
+    
+    C --> D{Tier Classification}
+    
+    D -->|Premium| E[Height: 96px<br/>Color: Gold<br/>Effects: Pulse + Shimmer]
+    D -->|Standard| F[Height: 64px<br/>Color: Blue<br/>Effects: Glow]
+    D -->|Basic| G[Height: 44px<br/>Color: Gray<br/>Effects: None]
+    
+    E --> H[Calculate Timeline Position]
+    F --> H
+    G --> H
+    
+    H --> I[startTime / maxTime * 100%]
+    H --> J[width = duration / maxTime * 100%]
+    
+    I --> K[Render Timeline Bar]
+    J --> K
+    
+    K --> L[Add Hover Tooltip]
+    K --> M[Add Click Handler]
+    
+    L --> N[Display in Timeline]
+    M --> N
+    
+    style E fill:#FFD700
+    style F fill:#4A90E2
+    style G fill:#808080
+    style N fill:#50C878

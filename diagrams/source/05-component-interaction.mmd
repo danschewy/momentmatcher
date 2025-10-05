@@ -1,0 +1,47 @@
+graph LR
+    subgraph "Frontend Components"
+        VC[VideoTimeline]
+        MC[MomentCard]
+        HP[HLSVideoPlayer]
+        VL[VideoLibrary]
+        IT[InfoTooltip]
+    end
+    
+    subgraph "Page Components"
+        AP[Analyze Page]
+        DP[Dashboard Page]
+        LP[Landing Page]
+    end
+    
+    subgraph "API Routes"
+        UPL[Upload Route]
+        ANL[Analyze Route]
+        MOM[Moments Route]
+        VID[Videos Route]
+    end
+    
+    subgraph "Services"
+        TLS[Twelve Labs Service]
+        OAS[OpenAI Service]
+        SCS[Spot Calculator]
+        DBS[Database Service]
+    end
+    
+    LP --> VL
+    AP --> VL & HP & VC & MC & IT
+    DP --> IT
+    
+    AP --> UPL & ANL
+    DP --> MOM
+    VL --> VID
+    
+    UPL --> TLS & DBS
+    ANL --> TLS & OAS & SCS & DBS
+    MOM --> DBS
+    VID --> TLS
+    
+    style AP fill:#4A90E2
+    style DP fill:#4A90E2
+    style TLS fill:#50C878
+    style OAS fill:#50C878
+    style DBS fill:#FF6B6B

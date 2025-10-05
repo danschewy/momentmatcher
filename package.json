@@ -19,7 +19,8 @@
     "upload-video": "npx tsx scripts/upload-video.ts",
     "verify-index": "npx tsx scripts/verify-index.ts",
     "check-db": "npx tsx scripts/check-db.ts",
-    "clear-analysis": "npx tsx scripts/clear-analysis.ts"
+    "clear-analysis": "npx tsx scripts/clear-analysis.ts",
+    "generate-diagrams": "./scripts/generate-diagrams.sh"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.1",

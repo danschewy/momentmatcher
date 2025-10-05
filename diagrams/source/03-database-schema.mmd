@@ -1,0 +1,80 @@
+erDiagram
+    VIDEOS ||--o{ AD_MOMENTS : contains
+    VIDEOS ||--o{ BRAND_MENTIONS : contains
+    AD_MOMENTS ||--o{ AD_RECOMMENDATIONS : has
+    BRAND_MENTIONS ||--o{ BRAND_MENTION_RECOMMENDATIONS : has
+
+    VIDEOS {
+        text id PK
+        text filename
+        timestamp uploaded_at
+        text status
+        jsonb twelve_labs_data
+        text video_url
+        integer duration
+    }
+
+    AD_MOMENTS {
+        uuid id PK
+        text video_id FK
+        integer start_time
+        integer end_time
+        text context
+        text emotional_tone
+        text category
+        integer confidence
+        text clip_url
+        text thumbnail_url
+        integer engagement_score
+        integer attention_score
+        text placement_tier
+        integer estimated_cpm_min
+        integer estimated_cpm_max
+        text category_tags
+    }
+
+    AD_RECOMMENDATIONS {
+        uuid id PK
+        uuid moment_id FK
+        text product_name
+        text brand_name
+        text description
+        text product_url
+        text image_url
+        text reasoning
+        integer relevance_score
+        boolean selected
+        integer estimated_cpm
+        integer estimated_ctr
+        integer projected_revenue
+    }
+
+    BRAND_MENTIONS {
+        uuid id PK
+        text video_id FK
+        text timestamp
+        integer time_in_seconds
+        text description
+        text type
+        integer engagement_score
+        integer attention_score
+        text placement_tier
+        integer estimated_cpm_min
+        integer estimated_cpm_max
+        text category_tags
+    }
+
+    BRAND_MENTION_RECOMMENDATIONS {
+        uuid id PK
+        uuid brand_mention_id FK
+        text product_name
+        text brand_name
+        text description
+        text product_url
+        text image_url
+        text reasoning
+        integer relevance_score
+        integer estimated_cpm
+        integer estimated_ctr
+        integer projected_revenue
+    }

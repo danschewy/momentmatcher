@@ -1,0 +1,39 @@
+graph TB
+    subgraph "Vercel Edge Network"
+        A[Global CDN]
+        B[Edge Functions]
+        C[Serverless Functions]
+    end
+    
+    subgraph "Application"
+        D[Next.js App]
+        D1[Static Pages]
+        D2[Server Components]
+        D3[API Routes]
+    end
+    
+    subgraph "External Services"
+        E1[Neon PostgreSQL]
+        E2[Twelve Labs API]
+        E3[OpenAI API]
+    end
+    
+    subgraph "Client"
+        F[User Browser]
+    end
+    
+    F -->|HTTPS| A
+    A --> B
+    B --> D1
+    A --> C
+    C --> D2 & D3
+    
+    D3 --> E1 & E2 & E3
+    
+    E2 -->|HLS Stream| A
+    A -->|Video| F
+    
+    style A fill:#FFD700
+    style E1 fill:#FF6B6B
+    style E2 fill:#50C878
+    style E3 fill:#50C878

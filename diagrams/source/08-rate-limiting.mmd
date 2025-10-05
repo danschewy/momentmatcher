@@ -1,0 +1,24 @@
+flowchart TD
+    A[Start Analysis] --> B{Has Cached Analysis?}
+    B -->|Yes| C[Return Cached Data]
+    B -->|No| D[Begin Fresh Analysis]
+    
+    D --> E[Process Brand Mentions]
+    E --> F{More Mentions?}
+    F -->|Yes| G[Get Recommendations]
+    G --> H[500ms Delay]
+    H --> F
+    F -->|No| I[Process Ad Moments]
+    
+    I --> J{More Moments?}
+    J -->|Yes| K[Get Recommendations]
+    K --> L[500ms Delay]
+    L --> J
+    J -->|No| M[Save to Database]
+    
+    M --> N[Return Results]
+    C --> N
+    
+    style C fill:#50C878
+    style H fill:#FFD700
+    style L fill:#FFD700

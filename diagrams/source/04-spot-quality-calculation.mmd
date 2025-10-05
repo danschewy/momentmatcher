@@ -1,0 +1,55 @@
+flowchart TD
+    A[Video Moment] --> B[Extract Features]
+    B --> C{Analyze Context}
+    C -->|Text Content| D[Detect Categories]
+    C -->|Emotional Tone| E[Calculate Emotion Intensity]
+    C -->|AI Confidence| F[Get Confidence Score]
+    
+    D --> G[Category Tags]
+    E --> H[Emotion Score 0-100]
+    F --> I[Confidence 0-100]
+    
+    H --> J[Calculate Engagement]
+    I --> J
+    J --> K[Engagement Score]
+    
+    I --> L[Calculate Attention]
+    H --> L
+    L --> M[Attention Score]
+    
+    K --> N{Average Score}
+    M --> N
+    
+    N -->|≥80| O[Premium Tier]
+    N -->|60-79| P[Standard Tier]
+    N -->|<60| Q[Basic Tier]
+    
+    O --> R[+30% CPM Multiplier]
+    P --> S[Base CPM]
+    Q --> T[-30% CPM Multiplier]
+    
+    G --> U[Get Category CPM]
+    U --> V[Base CPM Range]
+    
+    V --> R
+    V --> S
+    V --> T
+    
+    R --> W[Final CPM Min/Max]
+    S --> W
+    T --> W
+    
+    O --> X[Placement Tier]
+    P --> X
+    Q --> X
+    
+    W --> Y[Complete Spot Quality]
+    X --> Y
+    K --> Y
+    M --> Y
+    G --> Y
+    
+    style O fill:#FFD700
+    style P fill:#4A90E2
+    style Q fill:#808080
+    style Y fill:#50C878

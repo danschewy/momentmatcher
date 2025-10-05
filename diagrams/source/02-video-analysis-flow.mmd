@@ -1,0 +1,48 @@
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant API as Next.js API
+    participant TL as Twelve Labs
+    participant DB as PostgreSQL
+    participant OAI as OpenAI
+    participant SVC as Spot Calculator
+
+    %% Upload Phase
+    U->>F: Upload video file
+    F->>API: POST /api/upload
+    API->>TL: Upload video to index
+    TL->>TL: Index video (1-5 min)
+    TL-->>API: Return video ID
+    API->>DB: Save video metadata
+    DB-->>API: Confirm save
+    API-->>F: Return video ID & status
+    F->>F: Poll status every 5s
+    
+    %% Analysis Phase
+    F->>API: POST /api/analyze
+    
+    par Brand Mention Detection
+        API->>TL: Generate gist/topics
+        TL-->>API: Return brand mentions
+        loop For each mention
+            API->>OAI: Get product recommendations
+            OAI-->>API: Return products
+            API->>SVC: Calculate spot quality
+            SVC-->>API: Return tier & CPM
+            API->>DB: Save mention + recommendations
+        end
+    and Ad Moment Search
+        API->>TL: Semantic search queries
+        TL-->>API: Return matching moments
+        loop For each moment
+            API->>OAI: Get product recommendations
+            OAI-->>API: Return products
+            API->>SVC: Calculate spot quality
+            SVC-->>API: Return tier & CPM
+            API->>DB: Save moment + recommendations
+        end
+    end
+    
+    DB-->>API: Confirm all saves
+    API-->>F: Return complete analysis
+    F->>U: Display results + timeline
