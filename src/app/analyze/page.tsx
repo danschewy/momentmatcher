@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Upload, Target, TrendingUp, Download, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import VideoTimeline from "@/components/VideoTimeline";
@@ -10,7 +11,9 @@ import VideoLibrary from "@/components/VideoLibrary";
 import HLSVideoPlayer from "@/components/HLSVideoPlayer";
 import { AdMoment } from "@/types";
 
-export default function AnalyzePage() {
+function AnalyzePageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [mode, setMode] = useState<"select" | "upload">("select"); // New state for mode
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,6 +32,12 @@ export default function AnalyzePage() {
       timeInSeconds: number;
       description: string;
       type: "brand_mention" | "ad_opportunity";
+      engagementScore?: number | null;
+      attentionScore?: number | null;
+      placementTier?: string | null;
+      estimatedCpmMin?: number | null;
+      estimatedCpmMax?: number | null;
+      categoryTags?: string | null;
       recommendations?: Array<{
         productName: string;
         brandName: string;
@@ -49,6 +58,34 @@ export default function AnalyzePage() {
     filename: string;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasLoadedFromUrl = useRef(false);
+
+  // Load video from URL parameter on mount
+  useEffect(() => {
+    const videoId = searchParams.get("videoId");
+    const indexId = searchParams.get("indexId");
+
+    if (videoId && indexId && !hasLoadedFromUrl.current && !isAnalyzed) {
+      hasLoadedFromUrl.current = true;
+      console.log(`Loading video from URL: ${videoId}`);
+
+      // Fetch video info first
+      fetch(`/api/indexes/${indexId}/videos/${videoId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.video) {
+            handleVideoLibrarySelect(
+              indexId,
+              videoId,
+              data.video.metadata?.filename || "Video"
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load video from URL:", error);
+        });
+    }
+  }, [searchParams, isAnalyzed]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -81,7 +118,7 @@ export default function AnalyzePage() {
         );
         console.log("Video not ready, polling for completion...");
 
-        const isReady = await pollVideoStatus(videoId, indexId);
+        const isReady = await pollVideoStatus(videoId);
         if (!isReady) {
           alert("Video indexing timed out. Please try again later.");
           setIsProcessing(false);
@@ -127,6 +164,14 @@ export default function AnalyzePage() {
       console.log("Analysis data received:", analysisData);
       console.log("First moment:", analysisData.moments?.[0]);
       console.log(
+        "First moment placementTier:",
+        analysisData.moments?.[0]?.placementTier
+      );
+      console.log(
+        "First moment engagement:",
+        analysisData.moments?.[0]?.engagementScore
+      );
+      console.log(
         "First moment recommendations:",
         analysisData.moments?.[0]?.recommendations
       );
@@ -156,6 +201,14 @@ export default function AnalyzePage() {
       }
 
       setIsAnalyzed(true);
+
+      // Update URL with video parameters for easy linking back
+      const currentVideoId = searchParams.get("videoId");
+      if (currentVideoId !== videoId) {
+        router.push(`/analyze?videoId=${videoId}&indexId=${indexId}`, {
+          scroll: false,
+        });
+      }
     } catch (error) {
       console.error("Error analyzing video:", error);
       alert("Failed to analyze video. Please try again.");
@@ -165,130 +218,7 @@ export default function AnalyzePage() {
     }
   };
 
-  const generateDemoMoments = (): AdMoment[] => {
-    return [
-      {
-        id: "1",
-        startTime: 15,
-        endTime: 22,
-        context:
-          "Vlogger discusses returning to school and preparing for new semester",
-        emotionalTone: "excited",
-        category: "educational",
-        confidence: 92,
-        clipUrl: videoUrl,
-        thumbnailUrl: "",
-        recommendations: [
-          {
-            id: "r1",
-            productName: "Coursera Plus",
-            brandName: "Coursera",
-            description:
-              "Unlimited access to 7,000+ courses from top universities",
-            productUrl: "https://coursera.org",
-            imageUrl: "",
-            reasoning:
-              "Perfect match for educational content and back-to-school moment",
-            relevanceScore: 95,
-            selected: true,
-          },
-          {
-            id: "r2",
-            productName: "Notion Student Plan",
-            brandName: "Notion",
-            description:
-              "Free for students - All-in-one workspace for notes and projects",
-            productUrl: "https://notion.so",
-            imageUrl: "",
-            reasoning: "Students need organizational tools for new semester",
-            relevanceScore: 88,
-            selected: false,
-          },
-        ],
-      },
-      {
-        id: "2",
-        startTime: 45,
-        endTime: 53,
-        context:
-          "Creator shares excitement about new camera equipment and gear setup",
-        emotionalTone: "positive",
-        category: "technology",
-        confidence: 88,
-        clipUrl: videoUrl,
-        thumbnailUrl: "",
-        recommendations: [
-          {
-            id: "r3",
-            productName: "Sony A7 IV",
-            brandName: "Sony",
-            description: "Professional mirrorless camera for creators",
-            productUrl: "https://sony.com",
-            imageUrl: "",
-            reasoning: "Tech-savvy audience interested in camera equipment",
-            relevanceScore: 91,
-            selected: true,
-          },
-        ],
-      },
-      {
-        id: "3",
-        startTime: 78,
-        endTime: 85,
-        context: "Discussion about fitness goals and morning workout routine",
-        emotionalTone: "motivated",
-        category: "lifestyle",
-        confidence: 85,
-        clipUrl: videoUrl,
-        thumbnailUrl: "",
-        recommendations: [
-          {
-            id: "r4",
-            productName: "Premium Membership",
-            brandName: "Nike Training Club",
-            description: "Personalized workouts and training plans",
-            productUrl: "https://nike.com",
-            imageUrl: "",
-            reasoning:
-              "Fitness-focused moment ideal for activewear and training apps",
-            relevanceScore: 89,
-            selected: true,
-          },
-        ],
-      },
-      {
-        id: "4",
-        startTime: 120,
-        endTime: 128,
-        context:
-          "Creator recommends favorite productivity app for time management",
-        emotionalTone: "neutral",
-        category: "productivity",
-        confidence: 90,
-        clipUrl: videoUrl,
-        thumbnailUrl: "",
-        recommendations: [
-          {
-            id: "r5",
-            productName: "Todoist Premium",
-            brandName: "Todoist",
-            description: "Advanced task management and productivity features",
-            productUrl: "https://todoist.com",
-            imageUrl: "",
-            reasoning:
-              "Direct product mention creates natural ad placement opportunity",
-            relevanceScore: 94,
-            selected: true,
-          },
-        ],
-      },
-    ];
-  };
-
-  const pollVideoStatus = async (
-    videoId: string,
-    indexId: string
-  ): Promise<boolean> => {
+  const pollVideoStatus = async (videoId: string): Promise<boolean> => {
     const maxAttempts = 60; // 5 minutes
     let attempts = 0;
 
@@ -379,10 +309,7 @@ export default function AnalyzePage() {
         );
 
         // Poll for status
-        const isComplete = await pollVideoStatus(
-          uploadData.videoId,
-          uploadData.indexId
-        );
+        const isComplete = await pollVideoStatus(uploadData.videoId);
 
         if (!isComplete) {
           alert(
@@ -416,19 +343,24 @@ export default function AnalyzePage() {
   const handleExportReport = () => {
     const rows: string[][] = [];
 
-    // Header
+    // Header - Enhanced with spot quality metrics
     rows.push([
       "Type",
       "Timestamp",
       "Context/Description",
       "Category/Type",
       "Confidence",
+      "Engagement Score",
+      "Attention Score",
+      "Placement Tier",
+      "Spot CPM Min",
+      "Spot CPM Max",
       "Product Name",
       "Brand",
       "Product URL",
       "Relevance Score",
-      "Est. CPM",
-      "Est. CTR",
+      "Product CPM",
+      "Product CTR",
       "Projected Revenue",
     ]);
 
@@ -452,6 +384,15 @@ export default function AnalyzePage() {
             `"${moment.context.replace(/"/g, '""')}"`,
             moment.category || "general",
             `${moment.confidence}%`,
+            moment.engagementScore ? `${moment.engagementScore}%` : "",
+            moment.attentionScore ? `${moment.attentionScore}%` : "",
+            moment.placementTier || "",
+            moment.estimatedCpmMin
+              ? `$${(moment.estimatedCpmMin / 100).toFixed(2)}`
+              : "",
+            moment.estimatedCpmMax
+              ? `$${(moment.estimatedCpmMax / 100).toFixed(2)}`
+              : "",
             rec.productName || "",
             rec.brandName || "",
             rec.productUrl || "",
@@ -470,6 +411,15 @@ export default function AnalyzePage() {
           `"${moment.context.replace(/"/g, '""')}"`,
           moment.category || "general",
           `${moment.confidence}%`,
+          moment.engagementScore ? `${moment.engagementScore}%` : "",
+          moment.attentionScore ? `${moment.attentionScore}%` : "",
+          moment.placementTier || "",
+          moment.estimatedCpmMin
+            ? `$${(moment.estimatedCpmMin / 100).toFixed(2)}`
+            : "",
+          moment.estimatedCpmMax
+            ? `$${(moment.estimatedCpmMax / 100).toFixed(2)}`
+            : "",
           "",
           "",
           "",
@@ -493,6 +443,15 @@ export default function AnalyzePage() {
             `"${mention.description.replace(/"/g, '""')}"`,
             mention.type,
             "N/A",
+            mention.engagementScore ? `${mention.engagementScore}%` : "",
+            mention.attentionScore ? `${mention.attentionScore}%` : "",
+            mention.placementTier || "",
+            mention.estimatedCpmMin
+              ? `$${(mention.estimatedCpmMin / 100).toFixed(2)}`
+              : "",
+            mention.estimatedCpmMax
+              ? `$${(mention.estimatedCpmMax / 100).toFixed(2)}`
+              : "",
             rec.productName || "",
             rec.brandName || "",
             rec.productUrl || "",
@@ -511,6 +470,15 @@ export default function AnalyzePage() {
           `"${mention.description.replace(/"/g, '""')}"`,
           mention.type,
           "N/A",
+          mention.engagementScore ? `${mention.engagementScore}%` : "",
+          mention.attentionScore ? `${mention.attentionScore}%` : "",
+          mention.placementTier || "",
+          mention.estimatedCpmMin
+            ? `$${(mention.estimatedCpmMin / 100).toFixed(2)}`
+            : "",
+          mention.estimatedCpmMax
+            ? `$${(mention.estimatedCpmMax / 100).toFixed(2)}`
+            : "",
           "",
           "",
           "",
@@ -527,9 +495,16 @@ export default function AnalyzePage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `momentmatch-ad-report-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+
+    // Generate filename with video name and date
+    const videoName = selectedVideoInfo?.filename || file?.name || "video";
+    const cleanVideoName = videoName
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-z0-9]/gi, "-")
+      .toLowerCase();
+    const dateStr = new Date().toISOString().split("T")[0];
+    a.download = `momentmatch-${cleanVideoName}-${dateStr}.csv`;
+
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -557,10 +532,10 @@ export default function AnalyzePage() {
           {isAnalyzed && (
             <button
               onClick={handleExportReport}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
             >
               <Download className="w-4 h-4" />
-              Export Report
+              Export CSV Report
             </button>
           )}
         </div>
@@ -594,8 +569,27 @@ export default function AnalyzePage() {
             </div>
 
             {/* Video Library */}
-            {mode === "select" && (
+            {mode === "select" && !isProcessing && (
               <VideoLibrary onVideoSelect={handleVideoLibrarySelect} />
+            )}
+
+            {/* Loading state when selecting from library */}
+            {mode === "select" && isProcessing && !isAnalyzed && (
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-12">
+                  <h3 className="text-2xl font-bold text-white text-center mb-8">
+                    {processingStatus || "Loading video..."}
+                  </h3>
+                  <ProcessingAnimation />
+                  <p className="text-center text-gray-400 mt-8 text-sm">
+                    {processingStatus.includes("indexing")
+                      ? "This typically takes 1-5 minutes depending on video length."
+                      : processingStatus.includes("Analyzing")
+                      ? "AI is analyzing every frame, word, and emotion. This may take a few moments."
+                      : "Please wait while we prepare your video..."}
+                  </p>
+                </div>
+              </div>
             )}
           </>
         )}
@@ -758,15 +752,6 @@ export default function AnalyzePage() {
                     📺 Ad Moments ({adMoments.length})
                   </button>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleExportReport}
-                    className="flex items-center gap-2 px-4 py-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition text-white"
-                  >
-                    <Download className="w-5 h-5" />
-                    Export CSV
-                  </button>
-                </div>
               </div>
 
               {/* Brand Mentions Tab */}
@@ -780,95 +765,186 @@ export default function AnalyzePage() {
                     </p>
                   </div>
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                    {brandMentions.map((mention, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-4 rounded-lg transition-all cursor-pointer ${
-                          mention.type === "brand_mention"
-                            ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
-                            : "bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50"
-                        }`}
-                        onClick={() => {
-                          // Seek to this timestamp in the video
-                          const videoElement = document.querySelector("video");
-                          if (videoElement) {
-                            videoElement.currentTime = mention.timeInSeconds;
-                          }
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                mention.type === "brand_mention"
-                                  ? "bg-purple-600 text-white"
-                                  : "bg-indigo-600 text-white"
-                              }`}
-                            >
-                              {mention.type === "brand_mention"
-                                ? "🏷️ Brand Mention"
-                                : "⚡ Ad Opportunity"}
-                            </span>
-                            <span className="text-purple-300 font-mono text-sm">
-                              {mention.timestamp}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-gray-300 text-sm leading-relaxed mb-3">
-                          {mention.description}
-                        </p>
+                    {brandMentions.map((mention, idx) => {
+                      const tierStyle =
+                        mention.placementTier === "premium"
+                          ? "bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-2 border-yellow-500/40 hover:border-yellow-500/60 shadow-lg shadow-yellow-500/20"
+                          : mention.placementTier === "standard"
+                          ? "bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border-2 border-blue-500/30 hover:border-blue-500/50"
+                          : mention.placementTier === "basic"
+                          ? "bg-gray-500/10 border border-gray-500/30 hover:border-gray-500/50"
+                          : mention.type === "brand_mention"
+                          ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
+                          : "bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50";
 
-                        {/* Product Recommendations */}
-                        {mention.recommendations &&
-                          mention.recommendations.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-purple-500/20">
-                              <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
-                                💡 Recommended Products (
-                                {mention.recommendations.length})
-                              </h4>
-                              <div className="space-y-2">
-                                {mention.recommendations.map((rec, recIdx) => (
-                                  <div
-                                    key={recIdx}
-                                    className="p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
-                                    onClick={(e) => e.stopPropagation()} // Prevent video seek when clicking
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-4 rounded-lg transition-all cursor-pointer ${tierStyle}`}
+                          onClick={() => {
+                            // Seek to this timestamp in the video
+                            const videoElement =
+                              document.querySelector("video");
+                            if (videoElement) {
+                              videoElement.currentTime = mention.timeInSeconds;
+                            }
+                          }}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Type Badge */}
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  mention.type === "brand_mention"
+                                    ? "bg-purple-600 text-white"
+                                    : "bg-indigo-600 text-white"
+                                }`}
+                              >
+                                {mention.type === "brand_mention"
+                                  ? "🏷️ Brand Mention"
+                                  : "⚡ Ad Opportunity"}
+                              </span>
+
+                              {/* Placement Tier Badge */}
+                              {mention.placementTier && (
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                                    mention.placementTier === "premium"
+                                      ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-yellow-950 shadow-lg shadow-yellow-500/30"
+                                      : mention.placementTier === "standard"
+                                      ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                                      : "bg-gradient-to-r from-gray-500 to-gray-600 text-white"
+                                  }`}
+                                >
+                                  {mention.placementTier === "premium" && "⭐"}
+                                  {mention.placementTier === "standard" && "⚡"}
+                                  {mention.placementTier === "basic" && "○"}
+                                  <span className="uppercase tracking-wide">
+                                    {mention.placementTier}
+                                  </span>
+                                </span>
+                              )}
+
+                              {/* Timestamp */}
+                              <span className="text-purple-300 font-mono text-sm">
+                                {mention.timestamp}
+                              </span>
+                            </div>
+
+                            {/* Quality Metrics */}
+                            {mention.engagementScore && (
+                              <div className="flex gap-3 text-xs">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-gray-400">
+                                    Engagement:
+                                  </span>
+                                  <span
+                                    className={`font-semibold ${
+                                      mention.engagementScore >= 80
+                                        ? "text-green-400"
+                                        : mention.engagementScore >= 60
+                                        ? "text-blue-400"
+                                        : "text-gray-400"
+                                    }`}
                                   >
-                                    <div className="flex items-start justify-between mb-1">
-                                      <div className="flex-1">
-                                        <h5 className="text-sm font-semibold text-white">
-                                          {rec.productName}
-                                        </h5>
-                                        <p className="text-xs text-purple-300">
-                                          {rec.brandName}
-                                        </p>
-                                      </div>
-                                      <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
-                                        {rec.relevanceScore}%
+                                    {mention.engagementScore}%
+                                  </span>
+                                </div>
+                                {mention.estimatedCpmMin &&
+                                  mention.estimatedCpmMax && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-gray-400">
+                                        CPM:
+                                      </span>
+                                      <span className="text-green-400 font-semibold">
+                                        $
+                                        {(
+                                          mention.estimatedCpmMin / 100
+                                        ).toFixed(0)}
+                                        -$
+                                        {(
+                                          mention.estimatedCpmMax / 100
+                                        ).toFixed(0)}
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-400 mb-2">
-                                      {rec.description}
-                                    </p>
-                                    <div className="flex items-center justify-between">
-                                      <p className="text-xs text-gray-500 italic">
-                                        {rec.reasoning}
-                                      </p>
-                                      <a
-                                        href={rec.productUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition ml-2 flex-shrink-0"
-                                      >
-                                        Learn More
-                                      </a>
-                                    </div>
-                                  </div>
-                                ))}
+                                  )}
                               </div>
+                            )}
+                          </div>
+                          <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                            {mention.description}
+                          </p>
+
+                          {/* Category Tags */}
+                          {mention.categoryTags && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {mention.categoryTags
+                                .split(", ")
+                                .map((tag, tagIdx) => (
+                                  <span
+                                    key={tagIdx}
+                                    className="px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded text-xs"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
                             </div>
                           )}
-                      </div>
-                    ))}
+
+                          {/* Product Recommendations */}
+                          {mention.recommendations &&
+                            mention.recommendations.length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-purple-500/20">
+                                <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
+                                  💡 Recommended Products (
+                                  {mention.recommendations.length})
+                                </h4>
+                                <div className="space-y-2">
+                                  {mention.recommendations.map(
+                                    (rec, recIdx) => (
+                                      <div
+                                        key={recIdx}
+                                        className="p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+                                        onClick={(e) => e.stopPropagation()} // Prevent video seek when clicking
+                                      >
+                                        <div className="flex items-start justify-between mb-1">
+                                          <div className="flex-1">
+                                            <h5 className="text-sm font-semibold text-white">
+                                              {rec.productName}
+                                            </h5>
+                                            <p className="text-xs text-purple-300">
+                                              {rec.brandName}
+                                            </p>
+                                          </div>
+                                          <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
+                                            {rec.relevanceScore}%
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-gray-400 mb-2">
+                                          {rec.description}
+                                        </p>
+                                        <div className="flex items-center justify-between">
+                                          <p className="text-xs text-gray-500 italic">
+                                            {rec.reasoning}
+                                          </p>
+                                          <a
+                                            href={rec.productUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition ml-2 flex-shrink-0"
+                                          >
+                                            Learn More
+                                          </a>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -980,5 +1056,22 @@ export default function AnalyzePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AnalyzePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-indigo-950 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <AnalyzePageContent />
+    </Suspense>
   );
 }

@@ -24,6 +24,12 @@ export interface AdMoment {
   clipUrl: string;
   thumbnailUrl: string;
   recommendations: AdRecommendation[];
+  engagementScore?: number | null;
+  attentionScore?: number | null;
+  placementTier?: string | null;
+  estimatedCpmMin?: number | null;
+  estimatedCpmMax?: number | null;
+  categoryTags?: string | null;
 }
 
 export interface Video {

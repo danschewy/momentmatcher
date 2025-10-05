@@ -8,8 +8,6 @@ interface MomentCardProps {
   moment: AdMoment;
   isSelected: boolean;
   onClick: () => void;
-  indexId?: string;
-  videoId?: string;
 }
 
 const emotionEmojis: Record<string, string> = {
@@ -31,8 +29,6 @@ export default function MomentCard({
   moment,
   isSelected,
   onClick,
-  indexId,
-  videoId,
 }: MomentCardProps) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

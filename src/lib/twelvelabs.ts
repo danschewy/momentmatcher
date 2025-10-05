@@ -424,7 +424,8 @@ Be thorough and identify as many relevant moments as possible.`,
     endTime?: number
   ): Promise<string> {
     try {
-      const video = await this.getVideo(indexId, videoId);
+      // Verify video exists
+      await this.getVideo(indexId, videoId);
 
       // Get transcription with query parameter
       const response = await axios.get(

@@ -32,6 +32,13 @@ export const adMoments = pgTable("ad_moments", {
   confidence: integer("confidence"), // 0-100
   clipUrl: text("clip_url"),
   thumbnailUrl: text("thumbnail_url"),
+  // Ad Placement Quality Metrics
+  engagementScore: integer("engagement_score"), // 0-100, how engaging this moment is
+  attentionScore: integer("attention_score"), // 0-100, viewer attention level
+  placementTier: text("placement_tier"), // premium, standard, basic
+  estimatedCpmMin: integer("estimated_cpm_min"), // Min CPM in cents
+  estimatedCpmMax: integer("estimated_cpm_max"), // Max CPM in cents
+  categoryTags: text("category_tags"), // Comma-separated tags for ad categories
 });
 
 export const adRecommendations = pgTable("ad_recommendations", {
@@ -62,6 +69,13 @@ export const brandMentions = pgTable("brand_mentions", {
   timeInSeconds: integer("time_in_seconds").notNull(),
   description: text("description").notNull(),
   type: text("type").notNull(), // brand_mention or ad_opportunity
+  // Ad Placement Quality Metrics
+  engagementScore: integer("engagement_score"), // 0-100
+  attentionScore: integer("attention_score"), // 0-100
+  placementTier: text("placement_tier"), // premium, standard, basic
+  estimatedCpmMin: integer("estimated_cpm_min"), // Min CPM in cents
+  estimatedCpmMax: integer("estimated_cpm_max"), // Max CPM in cents
+  categoryTags: text("category_tags"), // Comma-separated tags
 });
 
 export const brandMentionRecommendations = pgTable(

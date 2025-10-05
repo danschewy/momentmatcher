@@ -10,6 +10,7 @@ import {
   brandMentionRecommendations as brandMentionRecsTable,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { calculateSpotQuality } from "@/lib/spot-value-calculator";
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,6 +68,13 @@ export async function POST(request: NextRequest) {
           confidence: moment.confidence || 0,
           clipUrl: moment.clipUrl || "",
           thumbnailUrl: moment.thumbnailUrl || "",
+          // Include spot quality metrics
+          engagementScore: moment.engagementScore,
+          attentionScore: moment.attentionScore,
+          placementTier: moment.placementTier,
+          estimatedCpmMin: moment.estimatedCpmMin,
+          estimatedCpmMax: moment.estimatedCpmMax,
+          categoryTags: moment.categoryTags,
           recommendations: (moment.recommendations || []).map((rec) => ({
             id: rec.id,
             momentId: rec.momentId,
@@ -91,6 +99,13 @@ export async function POST(request: NextRequest) {
             timeInSeconds: mention.timeInSeconds,
             description: mention.description,
             type: mention.type as "brand_mention" | "ad_opportunity",
+            // Include spot quality metrics
+            engagementScore: mention.engagementScore,
+            attentionScore: mention.attentionScore,
+            placementTier: mention.placementTier,
+            estimatedCpmMin: mention.estimatedCpmMin,
+            estimatedCpmMax: mention.estimatedCpmMax,
+            categoryTags: mention.categoryTags,
             recommendations: (mention.recommendations || []).map((rec) => ({
               productName: rec.productName,
               brandName: rec.brandName || "",
@@ -152,48 +167,100 @@ export async function POST(request: NextRequest) {
       `✅ Found ${brandMentionsRaw.length} brand mentions/ad opportunities`
     );
 
-    // Get product recommendations for each brand mention
+    // Get product recommendations for each brand mention and calculate spot quality
+    // Process sequentially to avoid rate limits
     console.log(`🛍️ Generating product recommendations for brand mentions...`);
-    const brandMentions = await Promise.all(
-      brandMentionsRaw.map(async (mention) => {
-        try {
-          console.log(
-            `  Getting recommendations for: ${mention.description.substring(
-              0,
-              50
-            )}...`
-          );
-          const recommendations = await openAIClient.findRelevantProducts(
-            mention.description,
-            "neutral", // Brand mentions don't have emotional tone
-            mention.type === "brand_mention" ? "product" : "general"
-          );
-          console.log(`  ✅ Got ${recommendations.length} recommendations`);
-          return {
-            ...mention,
-            recommendations: recommendations.slice(0, 3), // Top 3 recommendations
-          };
-        } catch (error) {
-          console.error(
-            `  ❌ Failed to get recommendations for mention:`,
-            error
-          );
-          return {
-            ...mention,
-            recommendations: [],
-          };
-        }
-      })
-    );
     console.log(
-      `✅ Added recommendations to ${brandMentions.length} brand mentions`
+      `   Processing ${brandMentionsRaw.length} mentions sequentially to avoid rate limits...`
+    );
+
+    const brandMentions = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < brandMentionsRaw.length; i++) {
+      const mention = brandMentionsRaw[i];
+
+      try {
+        console.log(
+          `  [${i + 1}/${
+            brandMentionsRaw.length
+          }] Getting recommendations for: ${mention.description.substring(
+            0,
+            50
+          )}...`
+        );
+
+        const recommendations = await openAIClient.findRelevantProducts(
+          mention.description,
+          "neutral", // Brand mentions don't have emotional tone
+          mention.type === "brand_mention" ? "product" : "general"
+        );
+
+        console.log(`  ✅ Got ${recommendations.length} recommendations`);
+        successCount++;
+
+        // Calculate spot quality metrics for this mention
+        const spotQuality = calculateSpotQuality(
+          mention.description,
+          mention.type === "brand_mention" ? "positive" : "excited",
+          75 // Default confidence for AI-detected moments
+        );
+
+        brandMentions.push({
+          ...mention,
+          recommendations: recommendations.slice(0, 3), // Top 3 recommendations
+          // Add spot quality metrics
+          engagementScore: spotQuality.engagementScore,
+          attentionScore: spotQuality.attentionScore,
+          placementTier: spotQuality.placementTier,
+          estimatedCpmMin: spotQuality.estimatedCpmMin,
+          estimatedCpmMax: spotQuality.estimatedCpmMax,
+          categoryTags: spotQuality.categoryTags.join(", "),
+        });
+
+        // Small delay to avoid rate limiting (500ms between requests)
+        if (i < brandMentionsRaw.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        failCount++;
+        console.error(
+          `  ❌ Failed to get recommendations for mention [${i + 1}/${
+            brandMentionsRaw.length
+          }]:`,
+          error instanceof Error ? error.message : error
+        );
+
+        // Calculate spot quality even if recommendations fail
+        const spotQuality = calculateSpotQuality(
+          mention.description,
+          mention.type === "brand_mention" ? "positive" : "excited",
+          75
+        );
+
+        brandMentions.push({
+          ...mention,
+          recommendations: [],
+          engagementScore: spotQuality.engagementScore,
+          attentionScore: spotQuality.attentionScore,
+          placementTier: spotQuality.placementTier,
+          estimatedCpmMin: spotQuality.estimatedCpmMin,
+          estimatedCpmMax: spotQuality.estimatedCpmMax,
+          categoryTags: spotQuality.categoryTags.join(", "),
+        });
+      }
+    }
+
+    console.log(
+      `✅ Processed ${brandMentions.length} brand mentions (${successCount} successful, ${failCount} failed)`
     );
 
     // Save brand mentions to database
     console.log(`💾 Saving brand mentions to database...`);
     for (const mention of brandMentions) {
       try {
-        // Save brand mention
+        // Save brand mention (spot quality metrics already calculated and attached)
         const [savedMention] = await db
           .insert(brandMentionsTable)
           .values({
@@ -202,10 +269,23 @@ export async function POST(request: NextRequest) {
             timeInSeconds: mention.timeInSeconds,
             description: mention.description,
             type: mention.type,
+            // Add spot quality metrics (already calculated)
+            engagementScore: mention.engagementScore,
+            attentionScore: mention.attentionScore,
+            placementTier: mention.placementTier,
+            estimatedCpmMin: mention.estimatedCpmMin,
+            estimatedCpmMax: mention.estimatedCpmMax,
+            categoryTags: mention.categoryTags,
           })
           .returning();
 
-        console.log(`  ✅ Saved brand mention: ${savedMention.id}`);
+        console.log(
+          `  ✅ Saved brand mention: ${savedMention.id} (${
+            mention.placementTier
+          } tier, CPM: $${((mention.estimatedCpmMin || 0) / 100).toFixed(
+            2
+          )}-$${((mention.estimatedCpmMax || 0) / 100).toFixed(2)})`
+        );
 
         // Save recommendations for this mention
         if (mention.recommendations && mention.recommendations.length > 0) {
@@ -274,8 +354,13 @@ export async function POST(request: NextRequest) {
     // Process each moment
     const processedMoments = [];
 
-    for (const moment of moments) {
-      console.log(`Processing moment: ${moment.text.substring(0, 50)}...`);
+    for (let momentIndex = 0; momentIndex < moments.length; momentIndex++) {
+      const moment = moments[momentIndex];
+      console.log(
+        `Processing moment [${momentIndex + 1}/${
+          moments.length
+        }]: ${moment.text.substring(0, 50)}...`
+      );
 
       // Generate clip and get transcript for this moment
       console.log(
@@ -291,6 +376,13 @@ export async function POST(request: NextRequest) {
 
       console.log(`Transcript for moment: ${transcript.substring(0, 100)}...`);
 
+      // Calculate spot quality metrics
+      const spotQuality = calculateSpotQuality(
+        moment.text,
+        moment.emotion || "neutral",
+        moment.confidence
+      );
+
       // Save moment to database (round times to integers)
       console.log(`Saving moment to database...`);
       const [savedMoment] = await db
@@ -305,10 +397,23 @@ export async function POST(request: NextRequest) {
           confidence: moment.confidence,
           clipUrl: clipUrl || null,
           thumbnailUrl: thumbnailUrl || null,
+          // Add spot quality metrics
+          engagementScore: spotQuality.engagementScore,
+          attentionScore: spotQuality.attentionScore,
+          placementTier: spotQuality.placementTier,
+          estimatedCpmMin: spotQuality.estimatedCpmMin,
+          estimatedCpmMax: spotQuality.estimatedCpmMax,
+          categoryTags: spotQuality.categoryTags.join(", "),
         })
         .returning();
 
-      console.log(`✅ Moment saved with ID: ${savedMoment.id}`);
+      console.log(
+        `✅ Moment saved with ID: ${savedMoment.id} (${
+          spotQuality.placementTier
+        } tier, CPM: $${(spotQuality.estimatedCpmMin / 100).toFixed(2)}-$${(
+          spotQuality.estimatedCpmMax / 100
+        ).toFixed(2)})`
+      );
       console.log(`   Video ID: ${savedMoment.videoId}`);
       console.log(
         `   Time: ${savedMoment.startTime}s - ${savedMoment.endTime}s`
@@ -325,11 +430,26 @@ export async function POST(request: NextRequest) {
         ? `${moment.text}\n\nTranscript: ${transcript}`
         : moment.text;
 
-      const recommendations = await openAIClient.findRelevantProducts(
-        contextWithTranscript,
-        moment.emotion || "neutral",
-        moment.category || "general"
-      );
+      let recommendations: Awaited<
+        ReturnType<typeof openAIClient.findRelevantProducts>
+      > = [];
+      try {
+        recommendations = await openAIClient.findRelevantProducts(
+          contextWithTranscript,
+          moment.emotion || "neutral",
+          moment.category || "general"
+        );
+        console.log(
+          `✅ Got ${recommendations.length} recommendations for moment`
+        );
+      } catch (error) {
+        console.error(
+          `❌ Failed to get recommendations for moment ${savedMoment.id}:`,
+          error instanceof Error ? error.message : error
+        );
+        // Continue with empty recommendations rather than failing the entire analysis
+        recommendations = [];
+      }
 
       // Save recommendations to database
       console.log(
@@ -422,8 +542,20 @@ export async function POST(request: NextRequest) {
         confidence: savedMoment.confidence || 0,
         clipUrl: savedMoment.clipUrl || "",
         thumbnailUrl: savedMoment.thumbnailUrl || "",
+        // Include spot quality metrics
+        engagementScore: savedMoment.engagementScore,
+        attentionScore: savedMoment.attentionScore,
+        placementTier: savedMoment.placementTier,
+        estimatedCpmMin: savedMoment.estimatedCpmMin,
+        estimatedCpmMax: savedMoment.estimatedCpmMax,
+        categoryTags: savedMoment.categoryTags,
         recommendations: savedRecommendations,
       });
+
+      // Small delay between moments to avoid rate limiting OpenAI calls
+      if (momentIndex < moments.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
     }
 
     // Update video status

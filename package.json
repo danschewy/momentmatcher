@@ -18,12 +18,14 @@
     "type-check": "tsc --noEmit",
     "upload-video": "npx tsx scripts/upload-video.ts",
     "verify-index": "npx tsx scripts/verify-index.ts",
-    "check-db": "npx tsx scripts/check-db.ts"
+    "check-db": "npx tsx scripts/check-db.ts",
+    "clear-analysis": "npx tsx scripts/clear-analysis.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.1",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.38.0",
     "hls.js": "^1.6.13",
     "jspdf": "^2.5.2",

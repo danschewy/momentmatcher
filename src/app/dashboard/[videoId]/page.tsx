@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   DollarSign,
   TrendingUp,
-  Package,
   Target,
   Download,
   BarChart3,
@@ -34,6 +34,12 @@ interface AdMoment {
   category: string;
   confidence: number;
   recommendations: Recommendation[];
+  engagementScore?: number | null;
+  attentionScore?: number | null;
+  placementTier?: string | null;
+  estimatedCpmMin?: number | null;
+  estimatedCpmMax?: number | null;
+  categoryTags?: string | null;
 }
 
 interface BrandMention {
@@ -42,6 +48,12 @@ interface BrandMention {
   description: string;
   type: "brand_mention" | "ad_opportunity";
   recommendations: Recommendation[];
+  engagementScore?: number | null;
+  attentionScore?: number | null;
+  placementTier?: string | null;
+  estimatedCpmMin?: number | null;
+  estimatedCpmMax?: number | null;
+  categoryTags?: string | null;
 }
 
 interface DashboardData {
@@ -51,7 +63,6 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const params = useParams();
-  const router = useRouter();
   const videoId = params.videoId as string;
 
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
@@ -59,6 +70,7 @@ export default function DashboardPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [indexId, setIndexId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!videoId) return;
@@ -66,12 +78,25 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
+
+        // Fetch dashboard data
         const response = await fetch(`/api/moments/${videoId}`);
         if (!response.ok) {
           throw new Error("Failed to fetch dashboard data");
         }
         const data = await response.json();
         setDashboardData(data);
+
+        // Fetch video info to get indexId
+        try {
+          const videoResponse = await fetch(`/api/indexes`);
+          const indexesData = await videoResponse.json();
+          if (indexesData.indexes && indexesData.indexes.length > 0) {
+            setIndexId(indexesData.indexes[0]._id);
+          }
+        } catch (err) {
+          console.error("Failed to fetch index ID:", err);
+        }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -82,23 +107,28 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [videoId]);
 
-  // Calculate aggregate metrics
+  // Calculate aggregate metrics based on ad placement spots
+  const getAllSpots = () => {
+    if (!dashboardData) return [];
+    return [...dashboardData.moments, ...dashboardData.brandMentions];
+  };
+
+  const allSpots = getAllSpots();
+
   const getAllRecommendations = (): Recommendation[] => {
     if (!dashboardData) return [];
-
     const momentRecs = dashboardData.moments.flatMap(
       (m) => m.recommendations || []
     );
     const mentionRecs = dashboardData.brandMentions.flatMap(
       (m) => m.recommendations || []
     );
-
     return [...momentRecs, ...mentionRecs];
   };
 
   const allRecommendations = getAllRecommendations();
 
-  // Convert stored integers back to display values
+  // Helper functions for product metrics (still used for product display)
   const formatCPM = (cpm: number | null | undefined) => {
     if (!cpm) return 0;
     return cpm; // Already in dollars
@@ -106,44 +136,141 @@ export default function DashboardPage() {
 
   const formatCTR = (ctr: number | null | undefined) => {
     if (!ctr) return 0;
-    return ctr / 10; // Convert back from stored integer (25 -> 2.5%)
+    return ctr / 10; // Convert back from stored integer
   };
 
   const formatRevenue = (revenue: number | null | undefined) => {
     if (!revenue) return 0;
-    return revenue / 100; // Convert from cents to dollars
+    return revenue / 100; // Convert from cents
   };
 
-  const totalMoments =
-    (dashboardData?.moments.length || 0) +
-    (dashboardData?.brandMentions.length || 0);
-  const totalRecommendations = allRecommendations.length;
+  // Calculate spot-based metrics
+  const totalSpots = allSpots.length;
+  const premiumSpots = allSpots.filter(
+    (s) => s.placementTier === "premium"
+  ).length;
+  const standardSpots = allSpots.filter(
+    (s) => s.placementTier === "standard"
+  ).length;
+  const basicSpots = allSpots.filter((s) => s.placementTier === "basic").length;
 
-  const avgCPM =
-    allRecommendations.length > 0
-      ? allRecommendations.reduce(
-          (sum, r) => sum + formatCPM(r.estimatedCPM),
-          0
-        ) / allRecommendations.length
+  // Calculate average engagement and attention scores
+  const avgEngagement =
+    allSpots.length > 0
+      ? allSpots.reduce((sum, s) => sum + (s.engagementScore || 0), 0) /
+        allSpots.length
       : 0;
 
-  const avgCTR =
-    allRecommendations.length > 0
-      ? allRecommendations.reduce(
-          (sum, r) => sum + formatCTR(r.estimatedCTR),
-          0
-        ) / allRecommendations.length
+  const avgAttention =
+    allSpots.length > 0
+      ? allSpots.reduce((sum, s) => sum + (s.attentionScore || 0), 0) /
+        allSpots.length
       : 0;
 
-  const totalProjectedRevenue = allRecommendations.reduce(
-    (sum, r) => sum + formatRevenue(r.projectedRevenue),
-    0
-  );
+  // Calculate average CPM based on spot quality
+  const avgCpmMin =
+    allSpots.length > 0
+      ? allSpots.reduce((sum, s) => sum + (s.estimatedCpmMin || 0), 0) /
+        allSpots.length /
+        100
+      : 0;
+
+  const avgCpmMax =
+    allSpots.length > 0
+      ? allSpots.reduce((sum, s) => sum + (s.estimatedCpmMax || 0), 0) /
+        allSpots.length /
+        100
+      : 0;
+
+  // Calculate total inventory value (sum of all spot CPMs)
+  const totalMinValue =
+    allSpots.reduce((sum, s) => sum + (s.estimatedCpmMin || 0), 0) / 100;
+  const totalMaxValue =
+    allSpots.reduce((sum, s) => sum + (s.estimatedCpmMax || 0), 0) / 100;
 
   // Group recommendations by product
   const uniqueProducts = Array.from(
     new Map(allRecommendations.map((r) => [r.productName, r])).values()
   );
+
+  // Export dashboard data to CSV
+  const handleExportDashboard = () => {
+    const rows: string[][] = [];
+
+    // Header
+    rows.push([
+      "Video ID",
+      "Total Ad Spots",
+      "Premium Spots",
+      "Standard Spots",
+      "Basic Spots",
+      "Avg Engagement",
+      "Avg Attention",
+      "Avg CPM Min",
+      "Avg CPM Max",
+      "Total Inventory Value Min",
+      "Total Inventory Value Max",
+    ]);
+
+    // Summary row
+    rows.push([
+      videoId,
+      totalSpots.toString(),
+      premiumSpots.toString(),
+      standardSpots.toString(),
+      basicSpots.toString(),
+      `${avgEngagement.toFixed(0)}%`,
+      `${avgAttention.toFixed(0)}%`,
+      `$${avgCpmMin.toFixed(2)}`,
+      `$${avgCpmMax.toFixed(2)}`,
+      `$${totalMinValue.toFixed(2)}`,
+      `$${totalMaxValue.toFixed(2)}`,
+    ]);
+
+    // Empty row
+    rows.push([]);
+
+    // Product recommendations header
+    rows.push([
+      "Product Name",
+      "Brand",
+      "Description",
+      "Product URL",
+      "Relevance Score",
+      "Est. CPM",
+      "Est. CTR",
+      "Projected Revenue",
+      "Reasoning",
+    ]);
+
+    // Add unique products
+    uniqueProducts.forEach((rec) => {
+      rows.push([
+        rec.productName || "",
+        rec.brandName || "",
+        `"${(rec.description || "").replace(/"/g, '""')}"`,
+        rec.productUrl || "",
+        `${rec.relevanceScore || 0}%`,
+        rec.estimatedCPM ? `$${formatCPM(rec.estimatedCPM).toFixed(2)}` : "",
+        rec.estimatedCTR ? `${formatCTR(rec.estimatedCTR).toFixed(2)}%` : "",
+        rec.projectedRevenue
+          ? `$${formatRevenue(rec.projectedRevenue).toFixed(2)}`
+          : "",
+        `"${(rec.reasoning || "").replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    const csv = rows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `momentmatch-dashboard-${videoId}-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (isLoading) {
     return (
@@ -172,13 +299,17 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <button
-            onClick={() => router.back()}
+          <Link
+            href={
+              indexId
+                ? `/analyze?videoId=${videoId}&indexId=${indexId}`
+                : "/analyze"
+            }
             className="flex items-center gap-2 text-gray-400 hover:text-white transition"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Analysis
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -198,76 +329,104 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <MetricCard
             icon={<Target className="w-6 h-6" />}
-            label="Ad Moments"
-            value={totalMoments.toString()}
+            label="Total Ad Spots"
+            value={totalSpots.toString()}
+            subtitle={`${premiumSpots} Premium, ${standardSpots} Standard`}
             color="indigo"
           />
           <MetricCard
-            icon={<Package className="w-6 h-6" />}
-            label="Products"
-            value={totalRecommendations.toString()}
+            icon={<TrendingUp className="w-6 h-6" />}
+            label="Avg Engagement"
+            value={`${avgEngagement.toFixed(0)}%`}
+            subtitle={`Attention: ${avgAttention.toFixed(0)}%`}
             color="purple"
           />
           <MetricCard
             icon={<BarChart3 className="w-6 h-6" />}
-            label="Avg CPM"
-            value={`$${avgCPM.toFixed(2)}`}
+            label="Avg CPM Range"
+            value={`$${avgCpmMin.toFixed(2)}-$${avgCpmMax.toFixed(2)}`}
+            subtitle="Per spot"
             color="blue"
           />
           <MetricCard
             icon={<DollarSign className="w-6 h-6" />}
-            label="Projected Revenue"
-            value={`$${totalProjectedRevenue.toFixed(2)}`}
+            label="Total Inventory Value"
+            value={`$${totalMinValue.toFixed(2)}-$${totalMaxValue.toFixed(2)}`}
+            subtitle="Estimated range"
             color="green"
           />
         </div>
 
-        {/* Revenue Impact Projection */}
-        <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-700/50 rounded-2xl p-8 mb-8">
+        {/* Ad Placement Quality Breakdown */}
+        <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-700/50 rounded-2xl p-8 mb-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center">
+              <Target className="w-7 h-7 text-white" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-white">
-                Revenue Impact Projection
+                Ad Placement Quality Analysis
               </h2>
-              <p className="text-sm text-green-300">
-                Based on AI analysis and industry benchmarks
+              <p className="text-sm text-indigo-300">
+                Spot value based on engagement, attention, and content category
               </p>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-black/20 rounded-xl p-6">
-              <p className="text-sm text-gray-400 mb-2">Average CPM</p>
-              <p className="text-3xl font-bold text-white mb-1">
-                ${avgCPM.toFixed(2)}
+          <div className="grid md:grid-cols-4 gap-6">
+            <div className="bg-black/20 rounded-xl p-6 border-2 border-yellow-500/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <p className="text-sm font-semibold text-yellow-400">
+                  PREMIUM SPOTS
+                </p>
+              </div>
+              <p className="text-4xl font-bold text-white mb-1">
+                {premiumSpots}
               </p>
-              <p className="text-xs text-gray-500">Cost per 1000 impressions</p>
+              <p className="text-xs text-gray-400">Engagement &gt; 80%</p>
+              <p className="text-xs text-green-400 mt-2">+30% CPM boost</p>
+            </div>
+            <div className="bg-black/20 rounded-xl p-6 border-2 border-blue-500/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <p className="text-sm font-semibold text-blue-400">
+                  STANDARD SPOTS
+                </p>
+              </div>
+              <p className="text-4xl font-bold text-white mb-1">
+                {standardSpots}
+              </p>
+              <p className="text-xs text-gray-400">Engagement 60-80%</p>
+              <p className="text-xs text-gray-500 mt-2">Base CPM</p>
+            </div>
+            <div className="bg-black/20 rounded-xl p-6 border-2 border-gray-500/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                <p className="text-sm font-semibold text-gray-400">
+                  BASIC SPOTS
+                </p>
+              </div>
+              <p className="text-4xl font-bold text-white mb-1">{basicSpots}</p>
+              <p className="text-xs text-gray-400">Engagement &lt; 60%</p>
+              <p className="text-xs text-orange-400 mt-2">-30% CPM</p>
             </div>
             <div className="bg-black/20 rounded-xl p-6">
-              <p className="text-sm text-gray-400 mb-2">Average CTR</p>
-              <p className="text-3xl font-bold text-white mb-1">
-                {avgCTR.toFixed(2)}%
-              </p>
-              <p className="text-xs text-gray-500">Click-through rate</p>
-            </div>
-            <div className="bg-black/20 rounded-xl p-6">
-              <p className="text-sm text-gray-400 mb-2">Total Potential</p>
+              <p className="text-sm text-gray-400 mb-2">Avg Spot Value</p>
               <p className="text-3xl font-bold text-green-400 mb-1">
-                ${totalProjectedRevenue.toFixed(2)}
+                ${((avgCpmMin + avgCpmMax) / 2).toFixed(2)}
               </p>
-              <p className="text-xs text-gray-500">Per video placement</p>
+              <p className="text-xs text-gray-500">CPM per placement</p>
             </div>
           </div>
 
-          <div className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <p className="text-sm text-green-300">
-              💡 <strong>Industry Insight:</strong> These projections are based
-              on contextual relevance, emotional engagement, and historical ad
-              performance data. Actual revenue may vary based on audience
-              demographics, video reach, and advertiser demand.
+          <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+            <p className="text-sm text-indigo-300">
+              📊 <strong>How This Works:</strong> Each ad spot is analyzed for
+              engagement level, viewer attention, emotional intensity, and
+              content category. CPM ranges are based on industry standards for
+              detected categories (Finance $20-40, Tech $10-22, Sports $10-18,
+              etc.) with quality multipliers applied.
             </p>
           </div>
         </div>
@@ -284,9 +443,12 @@ export default function DashboardPage() {
                 content
               </p>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+            <button
+              onClick={handleExportDashboard}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+            >
               <Download className="w-4 h-4" />
-              Export CSV
+              Export Dashboard CSV
             </button>
           </div>
 
@@ -359,11 +521,13 @@ function MetricCard({
   icon,
   label,
   value,
+  subtitle,
   color,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  subtitle?: string;
   color: "indigo" | "purple" | "blue" | "green";
 }) {
   const colorClasses = {
@@ -385,6 +549,7 @@ function MetricCard({
       </div>
       <p className="text-sm text-gray-400 mb-1">{label}</p>
       <p className="text-3xl font-bold text-white">{value}</p>
+      {subtitle && <p className="text-xs text-gray-500 mt-2">{subtitle}</p>}
     </div>
   );
 }
