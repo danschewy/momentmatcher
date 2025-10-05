@@ -7,8 +7,8 @@ import { formatDistanceToNow } from "date-fns";
 interface TwelveLabsVideo {
   _id: string;
   created_at: string;
-  duration: number;
-  metadata?: {
+  system_metadata?: {
+    duration?: number;
     filename?: string;
   };
   hls?: {
@@ -175,7 +175,7 @@ export default function VideoLibrary({ onVideoSelect }: VideoLibraryProps) {
                   onVideoSelect(
                     selectedIndex!,
                     video._id,
-                    video.metadata?.filename || "Unknown Video"
+                    video.system_metadata?.filename || "Unknown Video"
                   );
                 }}
                 disabled={isProcessing || processingVideoId !== null}
@@ -192,7 +192,7 @@ export default function VideoLibrary({ onVideoSelect }: VideoLibraryProps) {
                   {video.hls?.thumbnail_urls?.[0] ? (
                     <img
                       src={video.hls.thumbnail_urls[0]}
-                      alt={video.metadata?.filename || "Video thumbnail"}
+                      alt={video.system_metadata?.filename || "Video thumbnail"}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
@@ -201,7 +201,7 @@ export default function VideoLibrary({ onVideoSelect }: VideoLibraryProps) {
                     </div>
                   )}
                   <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                    {formatDuration(video.duration)}
+                    {formatDuration(video.system_metadata?.duration || 0)}
                   </div>
 
                   {/* Loading overlay */}
@@ -227,7 +227,7 @@ export default function VideoLibrary({ onVideoSelect }: VideoLibraryProps) {
                 {/* Video Info */}
                 <div className="p-4">
                   <h4 className="font-medium text-white truncate mb-1">
-                    {video.metadata?.filename || "Untitled Video"}
+                    {video.system_metadata?.filename || "Untitled Video"}
                   </h4>
                   <p className="text-xs text-gray-500 mb-3">
                     ID: {video._id.slice(0, 8)}...
