@@ -8,6 +8,9 @@ export interface AdRecommendation {
   reasoning: string;
   relevanceScore: number;
   selected: boolean;
+  estimatedCPM?: number | null;
+  estimatedCTR?: number | null;
+  projectedRevenue?: number | null;
 }
 
 export interface AdMoment {

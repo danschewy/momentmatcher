@@ -20,6 +20,9 @@ export default function AnalyzePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedMoment, setSelectedMoment] = useState<AdMoment | null>(null);
   const [adMoments, setAdMoments] = useState<AdMoment[]>([]);
+  const [activeTab, setActiveTab] = useState<"brandMentions" | "adMoments">(
+    "brandMentions"
+  );
   const [brandMentions, setBrandMentions] = useState<
     Array<{
       timestamp: string;
@@ -34,6 +37,9 @@ export default function AnalyzePage() {
         imageUrl?: string;
         reasoning: string;
         relevanceScore: number;
+        estimatedCPM?: number | null;
+        estimatedCTR?: number | null;
+        projectedRevenue?: number | null;
       }>;
     }>
   >([]);
@@ -65,14 +71,16 @@ export default function AnalyzePage() {
       // First, check if video is fully indexed
       const dbStatusResponse = await fetch(`/api/videos/${videoId}/status`);
       const dbStatus = await dbStatusResponse.json();
-      
+
       console.log("Video DB status:", dbStatus);
 
       // If not completed, poll until ready
       if (dbStatus.status !== "completed") {
-        setProcessingStatus("Video is still indexing... This may take 1-5 minutes.");
+        setProcessingStatus(
+          "Video is still indexing... This may take 1-5 minutes."
+        );
         console.log("Video not ready, polling for completion...");
-        
+
         const isReady = await pollVideoStatus(videoId, indexId);
         if (!isReady) {
           alert("Video indexing timed out. Please try again later.");
@@ -134,10 +142,15 @@ export default function AnalyzePage() {
         );
       }
 
-      // Set brand mentions
+      // Set brand mentions and sort by timestamp
       if (analysisData.brandMentions) {
-        setBrandMentions(analysisData.brandMentions);
-        console.log(`Set ${analysisData.brandMentions.length} brand mentions`);
+        const sortedMentions = [...analysisData.brandMentions].sort(
+          (a, b) => a.timeInSeconds - b.timeInSeconds
+        );
+        setBrandMentions(sortedMentions);
+        console.log(
+          `Set ${sortedMentions.length} brand mentions (sorted by timestamp)`
+        );
       } else {
         console.warn("No moments found in analysis");
       }
@@ -401,54 +414,124 @@ export default function AnalyzePage() {
   };
 
   const handleExportReport = () => {
-    const reportData = adMoments.map((moment, index) => ({
-      momentNumber: index + 1,
-      timestamp: `${Math.floor(moment.startTime / 60)}:${(moment.startTime % 60)
+    const rows: string[][] = [];
+
+    // Header
+    rows.push([
+      "Type",
+      "Timestamp",
+      "Context/Description",
+      "Category/Type",
+      "Confidence",
+      "Product Name",
+      "Brand",
+      "Product URL",
+      "Relevance Score",
+      "Est. CPM",
+      "Est. CTR",
+      "Projected Revenue",
+    ]);
+
+    // Add ad moments
+    adMoments.forEach((moment) => {
+      const timestamp = `${Math.floor(moment.startTime / 60)}:${(
+        moment.startTime % 60
+      )
         .toString()
         .padStart(2, "0")} - ${Math.floor(moment.endTime / 60)}:${(
         moment.endTime % 60
       )
         .toString()
-        .padStart(2, "0")}`,
-      context: moment.context,
-      tone: moment.emotionalTone,
-      category: moment.category,
-      confidence: `${moment.confidence}%`,
-      recommendedAds: moment.recommendations
-        .filter((r) => r.selected)
-        .map((r) => `${r.brandName} - ${r.productName}`)
-        .join(", "),
-    }));
+        .padStart(2, "0")}`;
 
-    const csv = [
-      [
-        "Moment #",
-        "Timestamp",
-        "Context",
-        "Tone",
-        "Category",
-        "Confidence",
-        "Recommended Ads",
-      ].join(","),
-      ...reportData.map((row) =>
-        [
-          row.momentNumber,
-          row.timestamp,
-          `"${row.context}"`,
-          row.tone,
-          row.category,
-          row.confidence,
-          `"${row.recommendedAds}"`,
-        ].join(",")
-      ),
-    ].join("\n");
+      if (moment.recommendations && moment.recommendations.length > 0) {
+        moment.recommendations.forEach((rec) => {
+          rows.push([
+            "Ad Moment",
+            timestamp,
+            `"${moment.context.replace(/"/g, '""')}"`,
+            moment.category || "general",
+            `${moment.confidence}%`,
+            rec.productName || "",
+            rec.brandName || "",
+            rec.productUrl || "",
+            `${rec.relevanceScore}%`,
+            rec.estimatedCPM ? `$${rec.estimatedCPM.toFixed(2)}` : "",
+            rec.estimatedCTR ? `${(rec.estimatedCTR / 10).toFixed(1)}%` : "",
+            rec.projectedRevenue
+              ? `$${(rec.projectedRevenue / 100).toFixed(2)}`
+              : "",
+          ]);
+        });
+      } else {
+        rows.push([
+          "Ad Moment",
+          timestamp,
+          `"${moment.context.replace(/"/g, '""')}"`,
+          moment.category || "general",
+          `${moment.confidence}%`,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      }
+    });
 
+    // Add brand mentions
+    brandMentions.forEach((mention) => {
+      if (mention.recommendations && mention.recommendations.length > 0) {
+        mention.recommendations.forEach((rec) => {
+          rows.push([
+            mention.type === "brand_mention"
+              ? "Brand Mention"
+              : "Ad Opportunity",
+            mention.timestamp,
+            `"${mention.description.replace(/"/g, '""')}"`,
+            mention.type,
+            "N/A",
+            rec.productName || "",
+            rec.brandName || "",
+            rec.productUrl || "",
+            `${rec.relevanceScore}%`,
+            rec.estimatedCPM ? `$${rec.estimatedCPM.toFixed(2)}` : "",
+            rec.estimatedCTR ? `${(rec.estimatedCTR / 10).toFixed(1)}%` : "",
+            rec.projectedRevenue
+              ? `$${(rec.projectedRevenue / 100).toFixed(2)}`
+              : "",
+          ]);
+        });
+      } else {
+        rows.push([
+          mention.type === "brand_mention" ? "Brand Mention" : "Ad Opportunity",
+          mention.timestamp,
+          `"${mention.description.replace(/"/g, '""')}"`,
+          mention.type,
+          "N/A",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      }
+    });
+
+    const csv = rows.map((row) => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "momentmatch-ad-report.csv";
+    a.download = `momentmatch-ad-report-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -650,211 +733,249 @@ export default function AnalyzePage() {
               />
             </div>
 
-            {/* Brand Mentions & Ad Opportunities */}
-            {brandMentions.length > 0 && (
-              <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 border border-purple-700/50 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">
-                      AI-Detected Brand Mentions & Ad Opportunities
-                    </h3>
-                    <p className="text-sm text-purple-300">
-                      {brandMentions.length} moments identified by AI analysis
-                    </p>
-                  </div>
+            {/* Tab Navigation */}
+            <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setActiveTab("brandMentions")}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                      activeTab === "brandMentions"
+                        ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg"
+                        : "bg-gray-700/50 text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    🎯 Brand Mentions ({brandMentions.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("adMoments")}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                      activeTab === "adMoments"
+                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
+                        : "bg-gray-700/50 text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    📺 Ad Moments ({adMoments.length})
+                  </button>
                 </div>
-
-                <div className="space-y-3">
-                  {brandMentions.map((mention, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-lg transition-all cursor-pointer ${
-                        mention.type === "brand_mention"
-                          ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
-                          : "bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50"
-                      }`}
-                      onClick={() => {
-                        // Seek to this timestamp in the video
-                        const videoElement = document.querySelector("video");
-                        if (videoElement) {
-                          videoElement.currentTime = mention.timeInSeconds;
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              mention.type === "brand_mention"
-                                ? "bg-purple-600 text-white"
-                                : "bg-indigo-600 text-white"
-                            }`}
-                          >
-                            {mention.type === "brand_mention"
-                              ? "🏷️ Brand Mention"
-                              : "⚡ Ad Opportunity"}
-                          </span>
-                          <span className="text-purple-300 font-mono text-sm">
-                            {mention.timestamp}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-gray-300 text-sm leading-relaxed mb-3">
-                        {mention.description}
-                      </p>
-
-                      {/* Product Recommendations */}
-                      {mention.recommendations &&
-                        mention.recommendations.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-purple-500/20">
-                            <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
-                              💡 Recommended Products (
-                              {mention.recommendations.length})
-                            </h4>
-                            <div className="space-y-2">
-                              {mention.recommendations.map((rec, recIdx) => (
-                                <div
-                                  key={recIdx}
-                                  className="p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
-                                  onClick={(e) => e.stopPropagation()} // Prevent video seek when clicking
-                                >
-                                  <div className="flex items-start justify-between mb-1">
-                                    <div className="flex-1">
-                                      <h5 className="text-sm font-semibold text-white">
-                                        {rec.productName}
-                                      </h5>
-                                      <p className="text-xs text-purple-300">
-                                        {rec.brandName}
-                                      </p>
-                                    </div>
-                                    <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
-                                      {rec.relevanceScore}%
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-gray-400 mb-2">
-                                    {rec.description}
-                                  </p>
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs text-gray-500 italic">
-                                      {rec.reasoning}
-                                    </p>
-                                    <a
-                                      href={rec.productUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition ml-2 flex-shrink-0"
-                                    >
-                                      Learn More
-                                    </a>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                  ))}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExportReport}
+                    className="flex items-center gap-2 px-4 py-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition text-white"
+                  >
+                    <Download className="w-5 h-5" />
+                    Export CSV
+                  </button>
                 </div>
               </div>
-            )}
 
-            {/* Timeline */}
-            <VideoTimeline
-              moments={adMoments}
-              currentTime={currentTime}
-              onMomentClick={setSelectedMoment}
-              selectedMoment={selectedMoment}
-            />
-
-            {/* Moments Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {adMoments.map((moment) => (
-                <MomentCard
-                  key={moment.id}
-                  moment={moment}
-                  isSelected={selectedMoment?.id === moment.id}
-                  onClick={() => setSelectedMoment(moment)}
-                />
-              ))}
-            </div>
-
-            {/* Selected Moment Detail */}
-            {selectedMoment && (
-              <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-8">
-                <h3 className="text-2xl font-bold text-white mb-6">
-                  Ad Recommendations
-                  {selectedMoment.recommendations.length > 0 && (
-                    <span className="ml-3 text-sm text-gray-400">
-                      ({selectedMoment.recommendations.length} recommendations)
-                    </span>
-                  )}
-                </h3>
-
-                {selectedMoment.recommendations.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">
-                    No recommendations available for this moment yet.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {selectedMoment.recommendations.map((rec) => (
+              {/* Brand Mentions Tab */}
+              {activeTab === "brandMentions" && brandMentions.length > 0 && (
+                <div>
+                  <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                    <p className="text-sm text-purple-300">
+                      ✨ AI-detected moments where brands, products, or
+                      high-energy opportunities were identified. Click any
+                      moment to jump to that timestamp in the video.
+                    </p>
+                  </div>
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                    {brandMentions.map((mention, idx) => (
                       <div
-                        key={rec.id}
-                        className={`p-6 border rounded-xl transition-all ${
-                          rec.selected
-                            ? "border-indigo-500 bg-indigo-500/10"
-                            : "border-gray-700 bg-gray-900/50"
+                        key={idx}
+                        className={`p-4 rounded-lg transition-all cursor-pointer ${
+                          mention.type === "brand_mention"
+                            ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/50"
+                            : "bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50"
                         }`}
+                        onClick={() => {
+                          // Seek to this timestamp in the video
+                          const videoElement = document.querySelector("video");
+                          if (videoElement) {
+                            videoElement.currentTime = mention.timeInSeconds;
+                          }
+                        }}
                       >
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="text-xl font-bold text-white">
-                              {rec.productName}
-                            </h4>
-                            <p className="text-indigo-400">{rec.brandName}</p>
-                          </div>
+                        <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
-                              {rec.relevanceScore}% Match
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                mention.type === "brand_mention"
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-indigo-600 text-white"
+                              }`}
+                            >
+                              {mention.type === "brand_mention"
+                                ? "🏷️ Brand Mention"
+                                : "⚡ Ad Opportunity"}
+                            </span>
+                            <span className="text-purple-300 font-mono text-sm">
+                              {mention.timestamp}
                             </span>
                           </div>
                         </div>
+                        <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                          {mention.description}
+                        </p>
 
-                        <p className="text-gray-300 mb-4">{rec.description}</p>
-
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-400 italic">
-                            {rec.reasoning}
-                          </p>
-                          <a
-                            href={rec.productUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-                          >
-                            Learn More
-                          </a>
-                        </div>
+                        {/* Product Recommendations */}
+                        {mention.recommendations &&
+                          mention.recommendations.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-purple-500/20">
+                              <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
+                                💡 Recommended Products (
+                                {mention.recommendations.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {mention.recommendations.map((rec, recIdx) => (
+                                  <div
+                                    key={recIdx}
+                                    className="p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors"
+                                    onClick={(e) => e.stopPropagation()} // Prevent video seek when clicking
+                                  >
+                                    <div className="flex items-start justify-between mb-1">
+                                      <div className="flex-1">
+                                        <h5 className="text-sm font-semibold text-white">
+                                          {rec.productName}
+                                        </h5>
+                                        <p className="text-xs text-purple-300">
+                                          {rec.brandName}
+                                        </p>
+                                      </div>
+                                      <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
+                                        {rec.relevanceScore}%
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mb-2">
+                                      {rec.description}
+                                    </p>
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs text-gray-500 italic">
+                                        {rec.reasoning}
+                                      </p>
+                                      <a
+                                        href={rec.productUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition ml-2 flex-shrink-0"
+                                      >
+                                        Learn More
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* Ad Moments Tab */}
+              {activeTab === "adMoments" && adMoments.length > 0 && (
+                <div>
+                  <div className="mb-4 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                    <p className="text-sm text-indigo-300">
+                      📺 Contextual ad placement opportunities based on video
+                      analysis. Each moment includes emotional tone, category,
+                      and confidence score.
+                    </p>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="mb-6">
+                    <VideoTimeline
+                      moments={adMoments}
+                      currentTime={currentTime}
+                      onMomentClick={setSelectedMoment}
+                      selectedMoment={selectedMoment}
+                    />
+                  </div>
+
+                  {/* Moments Grid */}
+                  <div className="grid md:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2">
+                    {adMoments.map((moment) => (
+                      <MomentCard
+                        key={moment.id}
+                        moment={moment}
+                        isSelected={selectedMoment?.id === moment.id}
+                        onClick={() => setSelectedMoment(moment)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Selected Moment Detail */}
+                  {selectedMoment && (
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-8">
+                      <h3 className="text-2xl font-bold text-white mb-6">
+                        Ad Recommendations
+                        {selectedMoment.recommendations.length > 0 && (
+                          <span className="ml-3 text-sm text-gray-400">
+                            ({selectedMoment.recommendations.length}{" "}
+                            recommendations)
+                          </span>
+                        )}
+                      </h3>
+
+                      {selectedMoment.recommendations.length === 0 ? (
+                        <p className="text-gray-400 text-center py-8">
+                          No recommendations available for this moment yet.
+                        </p>
+                      ) : (
+                        <div className="space-y-4">
+                          {selectedMoment.recommendations.map((rec) => (
+                            <div
+                              key={rec.id}
+                              className={`p-6 border rounded-xl transition-all ${
+                                rec.selected
+                                  ? "border-indigo-500 bg-indigo-500/10"
+                                  : "border-gray-700 bg-gray-900/50"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h4 className="text-xl font-bold text-white">
+                                    {rec.productName}
+                                  </h4>
+                                  <p className="text-indigo-400">
+                                    {rec.brandName}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                                    {rec.relevanceScore}% Match
+                                  </span>
+                                </div>
+                              </div>
+
+                              <p className="text-gray-300 mb-4">
+                                {rec.description}
+                              </p>
+
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm text-gray-400 italic">
+                                  {rec.reasoning}
+                                </p>
+                                <a
+                                  href={rec.productUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+                                >
+                                  Learn More
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

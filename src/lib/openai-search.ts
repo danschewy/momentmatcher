@@ -41,13 +41,17 @@ Category: ${category}
 For each recommendation, provide:
 1. Product/Brand Name
 2. Brief description
-3. Why it's a good fit for this moment
-4. Relevance score (0-100)
-5. Estimated CPM (Cost per 1000 impressions) in USD - provide a realistic estimate based on industry standards for this product category
-6. Estimated CTR (Click-through rate) as a percentage - provide a realistic estimate based on ad relevance and placement
-7. Projected Revenue per placement in USD - calculate this based on: (estimatedCPM * estimatedCTR * 10) as a rough estimate
+3. A REAL, WORKING product URL (direct link to buy or learn more - use web search to find actual URLs)
+4. Why it's a good fit for this moment
+5. Relevance score (0-100)
+6. Estimated CPM (Cost per 1000 impressions) in USD - provide a realistic estimate based on industry standards for this product category
+7. Estimated CTR (Click-through rate) as a percentage - provide a realistic estimate based on ad relevance and placement
+8. Projected Revenue per placement in USD - calculate this based on: (estimatedCPM * estimatedCTR * 10) as a rough estimate
 
-IMPORTANT: Return your response as a JSON object with a "recommendations" array containing exactly 3 products.
+IMPORTANT: 
+- Use web search to find REAL products with REAL URLs
+- Return your response as a JSON object with a "recommendations" array containing exactly 3 products
+- Every product MUST have a valid productUrl
 
 Format your response exactly like this:
 {
@@ -56,6 +60,7 @@ Format your response exactly like this:
       "productName": "string",
       "brandName": "string", 
       "description": "string",
+      "productUrl": "https://...",
       "reasoning": "string",
       "relevanceScore": number,
       "estimatedCPM": number,

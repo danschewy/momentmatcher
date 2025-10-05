@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Check if video is already analyzed
     if (dbVideo.length > 0 && dbVideo[0].status === "completed") {
-      console.log("Video already analyzed, retrieving existing moments...");
+      console.log("Video marked as completed, checking if moments exist...");
 
       // Fetch existing moments with recommendations
       const existingMoments = await db.query.adMoments.findMany({
@@ -51,64 +51,76 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Transform moments to match expected format
-      const transformedMoments = existingMoments.map((moment) => ({
-        id: moment.id,
-        startTime: moment.startTime,
-        endTime: moment.endTime,
-        context: moment.context,
-        emotionalTone: moment.emotionalTone || "neutral",
-        category: moment.category || "general",
-        confidence: moment.confidence || 0,
-        clipUrl: moment.clipUrl || "",
-        thumbnailUrl: moment.thumbnailUrl || "",
-        recommendations: (moment.recommendations || []).map((rec) => ({
-          id: rec.id,
-          momentId: rec.momentId,
-          productName: rec.productName,
-          brandName: rec.brandName || "",
-          description: rec.description || "",
-          productUrl: rec.productUrl || "",
-          imageUrl: "",
-          reasoning: rec.reasoning || "",
-          relevanceScore: rec.relevanceScore || 0,
-          selected: rec.selected || false,
-          estimatedCPM: rec.estimatedCPM || null,
-          estimatedCTR: rec.estimatedCTR || null,
-          projectedRevenue: rec.projectedRevenue || null,
-        })),
-      }));
+      // Only return cached data if moments actually exist
+      // If no moments, fall through to perform analysis
+      if (existingMoments.length > 0 || existingBrandMentions.length > 0) {
+        console.log("Video already analyzed, retrieving existing moments...");
 
-      // Transform brand mentions to match expected format
-      const transformedBrandMentions = existingBrandMentions.map((mention) => ({
-        timestamp: mention.timestamp,
-        timeInSeconds: mention.timeInSeconds,
-        description: mention.description,
-        type: mention.type as "brand_mention" | "ad_opportunity",
-        recommendations: (mention.recommendations || []).map((rec) => ({
-          productName: rec.productName,
-          brandName: rec.brandName || "",
-          description: rec.description || "",
-          productUrl: rec.productUrl || "",
-          imageUrl: rec.imageUrl || "",
-          reasoning: rec.reasoning || "",
-          relevanceScore: rec.relevanceScore || 0,
-          estimatedCPM: rec.estimatedCPM || null,
-          estimatedCTR: rec.estimatedCTR || null,
-          projectedRevenue: rec.projectedRevenue || null,
-        })),
-      }));
+        // Transform moments to match expected format
+        const transformedMoments = existingMoments.map((moment) => ({
+          id: moment.id,
+          startTime: moment.startTime,
+          endTime: moment.endTime,
+          context: moment.context,
+          emotionalTone: moment.emotionalTone || "neutral",
+          category: moment.category || "general",
+          confidence: moment.confidence || 0,
+          clipUrl: moment.clipUrl || "",
+          thumbnailUrl: moment.thumbnailUrl || "",
+          recommendations: (moment.recommendations || []).map((rec) => ({
+            id: rec.id,
+            momentId: rec.momentId,
+            productName: rec.productName,
+            brandName: rec.brandName || "",
+            description: rec.description || "",
+            productUrl: rec.productUrl || "",
+            imageUrl: "",
+            reasoning: rec.reasoning || "",
+            relevanceScore: rec.relevanceScore || 0,
+            selected: rec.selected || false,
+            estimatedCPM: rec.estimatedCPM || null,
+            estimatedCTR: rec.estimatedCTR || null,
+            projectedRevenue: rec.projectedRevenue || null,
+          })),
+        }));
 
-      console.log(
-        `Returning cached: ${transformedMoments.length} moments, ${transformedBrandMentions.length} brand mentions`
-      );
+        // Transform brand mentions to match expected format
+        const transformedBrandMentions = existingBrandMentions.map(
+          (mention) => ({
+            timestamp: mention.timestamp,
+            timeInSeconds: mention.timeInSeconds,
+            description: mention.description,
+            type: mention.type as "brand_mention" | "ad_opportunity",
+            recommendations: (mention.recommendations || []).map((rec) => ({
+              productName: rec.productName,
+              brandName: rec.brandName || "",
+              description: rec.description || "",
+              productUrl: rec.productUrl || "",
+              imageUrl: rec.imageUrl || "",
+              reasoning: rec.reasoning || "",
+              relevanceScore: rec.relevanceScore || 0,
+              estimatedCPM: rec.estimatedCPM || null,
+              estimatedCTR: rec.estimatedCTR || null,
+              projectedRevenue: rec.projectedRevenue || null,
+            })),
+          })
+        );
 
-      return NextResponse.json({
-        success: true,
-        cached: true,
-        moments: transformedMoments,
-        brandMentions: transformedBrandMentions,
-      });
+        console.log(
+          `Returning cached: ${transformedMoments.length} moments, ${transformedBrandMentions.length} brand mentions`
+        );
+
+        return NextResponse.json({
+          success: true,
+          cached: true,
+          moments: transformedMoments,
+          brandMentions: transformedBrandMentions,
+        });
+      } else {
+        console.log(
+          "Video completed but no moments found. Performing fresh analysis..."
+        );
+      }
     }
 
     if (dbVideo.length === 0) {
