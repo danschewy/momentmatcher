@@ -9,6 +9,7 @@ import MomentCard from "@/components/MomentCard";
 import ProcessingAnimation from "@/components/ProcessingAnimation";
 import VideoLibrary from "@/components/VideoLibrary";
 import HLSVideoPlayer from "@/components/HLSVideoPlayer";
+import InfoTooltip from "@/components/InfoTooltip";
 import { AdMoment } from "@/types";
 
 function AnalyzePageContent() {
@@ -758,11 +759,19 @@ function AnalyzePageContent() {
               {activeTab === "brandMentions" && brandMentions.length > 0 && (
                 <div>
                   <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                    <p className="text-sm text-purple-300">
-                      ✨ AI-detected moments where brands, products, or
-                      high-energy opportunities were identified. Premium spots
-                      (gold) have 80%+ engagement.
-                    </p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-sm text-purple-300 flex-1">
+                        ✨ AI-detected moments where brands, products, or
+                        high-energy opportunities were identified. Premium spots
+                        (gold) have 80%+ engagement.
+                      </p>
+                      <InfoTooltip
+                        title="Brand Mentions & Ad Opportunities"
+                        description="These are moments in your video where our AI detected existing brand mentions or identified high-potential opportunities for ad placements."
+                        calculation="Using Twelve Labs' multimodal AI, we analyze visual content, audio transcripts, on-screen text, and emotional context to identify brand references and engaging moments suitable for advertising."
+                        justification="Brand mentions show where products are organically featured, while ad opportunities highlight moments with high viewer engagement and attention that would be valuable for sponsored content or product placements."
+                      />
+                    </div>
                   </div>
 
                   {/* Timeline for Brand Mentions */}
@@ -840,22 +849,31 @@ function AnalyzePageContent() {
 
                               {/* Placement Tier Badge */}
                               {mention.placementTier && (
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-                                    mention.placementTier === "premium"
-                                      ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-yellow-950 shadow-lg shadow-yellow-500/30"
-                                      : mention.placementTier === "standard"
-                                      ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
-                                      : "bg-gradient-to-r from-gray-500 to-gray-600 text-white"
-                                  }`}
-                                >
-                                  {mention.placementTier === "premium" && "⭐"}
-                                  {mention.placementTier === "standard" && "⚡"}
-                                  {mention.placementTier === "basic" && "○"}
-                                  <span className="uppercase tracking-wide">
-                                    {mention.placementTier}
+                                <div className="flex items-center gap-1">
+                                  <span
+                                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                                      mention.placementTier === "premium"
+                                        ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-yellow-950 shadow-lg shadow-yellow-500/30"
+                                        : mention.placementTier === "standard"
+                                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                                        : "bg-gradient-to-r from-gray-500 to-gray-600 text-white"
+                                    }`}
+                                  >
+                                    {mention.placementTier === "premium" && "⭐"}
+                                    {mention.placementTier === "standard" && "⚡"}
+                                    {mention.placementTier === "basic" && "○"}
+                                    <span className="uppercase tracking-wide">
+                                      {mention.placementTier}
+                                    </span>
                                   </span>
-                                </span>
+                                  <InfoTooltip
+                                    title="Placement Tier"
+                                    description="Quality rating that determines the advertising value of this moment. Premium spots are the most valuable, followed by Standard and Basic."
+                                    calculation="Based on average of Engagement and Attention scores: Premium (80%+), Standard (60-80%), Basic (<60%). Each tier has different CPM multipliers affecting potential revenue."
+                                    justification="Advertisers pay premium rates for high-quality placements where viewers are most engaged. This tier system helps you identify your most valuable content moments and optimize pricing strategies."
+                                    size="sm"
+                                  />
+                                </div>
                               )}
 
                               {/* Timestamp */}
@@ -882,6 +900,13 @@ function AnalyzePageContent() {
                                   >
                                     {mention.engagementScore}%
                                   </span>
+                                  <InfoTooltip
+                                    title="Engagement Score"
+                                    description="Measures how engaging and emotionally compelling this moment is for viewers. Higher scores indicate moments that capture and hold viewer attention."
+                                    calculation="Calculated using: (Emotional Intensity × 60%) + (AI Confidence × 40%). Emotional intensity is derived from detected emotional tone (excited=90%, happy=70%, neutral=50%)."
+                                    justification="High engagement moments are more valuable for ad placements because viewers are actively paying attention and are more likely to notice and respond to advertisements."
+                                    size="sm"
+                                  />
                                 </div>
                                 {mention.estimatedCpmMin &&
                                   mention.estimatedCpmMax && (
@@ -899,6 +924,13 @@ function AnalyzePageContent() {
                                           mention.estimatedCpmMax / 100
                                         ).toFixed(0)}
                                       </span>
+                                      <InfoTooltip
+                                        title="CPM (Cost Per Mille)"
+                                        description="Estimated advertising rate per 1,000 impressions for this spot. This is what advertisers would typically pay to show an ad at this moment in your video."
+                                        calculation="Based on industry-standard CPM rates by content category (e.g., Finance: $20-40, Tech: $10-22, Sports: $10-18) with quality multipliers: Premium spots (80%+ engagement) get +30%, Standard spots (60-80%) use base rate, Basic spots (<60%) get -30%."
+                                        justification="CPM reflects the market value of this ad placement. Higher quality content in valuable categories commands premium advertising rates, directly impacting potential revenue."
+                                        size="sm"
+                                      />
                                     </div>
                                   )}
                               </div>
@@ -928,10 +960,19 @@ function AnalyzePageContent() {
                           {mention.recommendations &&
                             mention.recommendations.length > 0 && (
                               <div className="mt-4 pt-4 border-t border-purple-500/20">
-                                <h4 className="text-xs font-semibold text-purple-300 uppercase mb-3">
-                                  💡 Recommended Products (
-                                  {mention.recommendations.length})
-                                </h4>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <h4 className="text-xs font-semibold text-purple-300 uppercase">
+                                    💡 Recommended Products (
+                                    {mention.recommendations.length})
+                                  </h4>
+                                  <InfoTooltip
+                                    title="Product Recommendations"
+                                    description="AI-suggested products and brands that are contextually relevant to this specific video moment. Each recommendation is matched based on content analysis."
+                                    calculation="Using OpenAI GPT-4 with Twelve Labs' video analysis, we match products from our database to video content based on context, emotional tone, and category alignment. Relevance scores (0-100%) indicate match strength."
+                                    justification="Contextually relevant product placements perform significantly better than generic ads. These recommendations help you find the most suitable sponsorship opportunities that will resonate with viewers."
+                                    size="sm"
+                                  />
+                                </div>
                                 <div className="space-y-2">
                                   {mention.recommendations.map(
                                     (rec, recIdx) => (
@@ -949,9 +990,18 @@ function AnalyzePageContent() {
                                               {rec.brandName}
                                             </p>
                                           </div>
-                                          <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium ml-2">
-                                            {rec.relevanceScore}%
-                                          </span>
+                                          <div className="flex items-center gap-1 ml-2">
+                                            <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium">
+                                              {rec.relevanceScore}%
+                                            </span>
+                                            <InfoTooltip
+                                              title="Relevance Score"
+                                              description="How well this product matches the video content and context at this moment. Higher scores mean better alignment between the product and the content."
+                                              calculation="AI-generated score (0-100%) based on semantic similarity between product category/description and video context, emotional tone alignment, and audience demographic fit."
+                                              justification="Relevant product placements lead to higher click-through rates and better viewer reception. A 90%+ relevance score indicates an excellent match that viewers will find natural and helpful."
+                                              size="sm"
+                                            />
+                                          </div>
                                         </div>
                                         <p className="text-xs text-gray-400 mb-2">
                                           {rec.description}
@@ -986,12 +1036,20 @@ function AnalyzePageContent() {
               {activeTab === "adMoments" && adMoments.length > 0 && (
                 <div>
                   <div className="mb-4 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
-                    <p className="text-sm text-indigo-300">
-                      📺 Contextual ad placement opportunities based on video
-                      analysis. Each moment includes emotional tone, category,
-                      and confidence score. Premium spots (gold) have 80%+
-                      engagement.
-                    </p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-sm text-indigo-300 flex-1">
+                        📺 Contextual ad placement opportunities based on video
+                        analysis. Each moment includes emotional tone, category,
+                        and confidence score. Premium spots (gold) have 80%+
+                        engagement.
+                      </p>
+                      <InfoTooltip
+                        title="Ad Moments"
+                        description="Time segments in your video that are ideal for advertising. These moments are identified based on content breaks, emotional peaks, and viewer attention patterns."
+                        calculation="Uses Twelve Labs' video understanding engine to detect scene transitions, topic changes, and high-engagement moments. Each moment is scored for emotional intensity, viewer attention, and contextual relevance."
+                        justification="Strategic ad placement during natural breaks and high-engagement moments maximizes viewer retention and ad effectiveness. These spots have been validated against industry best practices for video advertising."
+                      />
+                    </div>
                   </div>
 
                   {/* Timeline - showing all ad moments */}
