@@ -4,6 +4,21 @@
 
 MomentMatch AI is an intelligent video ad placement platform that analyzes video content to identify optimal moments for advertisement insertion. Using advanced AI from Twelve Labs and OpenAI, it provides context-aware, emotion-driven ad recommendations that maximize engagement and ROI.
 
+---
+
+## 📚 Documentation
+
+**NEW!** Comprehensive technical documentation now available:
+
+- 📖 **[Documentation Index](./DOCUMENTATION_INDEX.md)** - Navigation guide to all docs
+- 🏗️ **[Technical Architecture](./TECHNICAL_ARCHITECTURE.md)** - Complete system overview
+- 📊 **[Architecture Diagrams](./ARCHITECTURE_DIAGRAM.md)** - Visual system diagrams (Mermaid)
+- 🚀 **[Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Step-by-step deployment instructions
+
+_See [DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md) for the complete list of documentation._
+
+---
+
 ## 🚀 Features
 
 - **🎥 Deep Video Analysis**: Powered by Twelve Labs' Marengo 2.7 engine for comprehensive video understanding
